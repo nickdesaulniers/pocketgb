@@ -61,7 +61,9 @@ void handle_cb_prefix (struct cpu* const lr35902, uint8_t* const memory, uint8_t
     case 0x7C:
       printf("BIT 7, H\n");
       printf("h: %d\n", lr35902->registers.h);
-      lr35902->registers.f.z = !lr35902->registers.h;
+      printf("z: %d\n", lr35902->registers.f.z);
+      lr35902->registers.f.z = (lr35902->registers.h & (1 << 6)) != 0;
+      printf("z: %d\n", lr35902->registers.f.z);
       lr35902->registers.f.n = 0;
       lr35902->registers.f.h = 0;
       break;
@@ -77,7 +79,7 @@ int main (int argc, char** argv) {
     return -1;
   }
 
-  printf("%lu\n", sizeof(struct registers));
+  /*printf("%lu\n", sizeof(struct registers));*/
 
   // TODO: malloc
   uint8_t memory [65536];
@@ -94,7 +96,7 @@ int main (int argc, char** argv) {
 
   // http://pastraiser.com/cpu/gameboy/gameboy_opcodes.html
   for (uint8_t* pc = &memory[0]; pc < &memory[65536];) {
-    pbyte(*pc);
+    /*pbyte(*pc);*/
     switch (*pc) {
       case 0x20:
         // Jump Relative
@@ -129,7 +131,7 @@ int main (int argc, char** argv) {
         break;
       case 0x32:
         printf("LD (HL-),A\n");
-        pshort(lr35902.registers.hl);
+        /*pshort(lr35902.registers.hl);*/
         pbyte(memory[lr35902.registers.hl]);
         memory[lr35902.registers.hl] = lr35902.registers.a;
         pbyte(memory[lr35902.registers.hl]);
