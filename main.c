@@ -11,7 +11,6 @@ struct cpu {
       uint8_t h : 1;
       uint8_t c : 1;
     } f;
-    /*uint8_t f;*/
     uint8_t b;
     uint8_t c;
     uint8_t d;
@@ -24,8 +23,6 @@ struct cpu {
         uint8_t h;
       };
     };
-    /*uint8_t h;*/
-    /*uint8_t l;*/
     uint16_t sp;
     uint16_t pc;
   } registers;
@@ -73,6 +70,9 @@ void handle_cb_prefix (struct cpu* const lr35902, uint8_t* const memory, uint8_t
   }
 }
 
+// print 8b register
+#define PR8(reg) pbyte(lr35902.registers.reg)
+
 int main (int argc, char** argv) {
   if (argc < 2) {
     fprintf(stderr, "USAGE: ./pocketgb <rom.gb>\n");
@@ -98,6 +98,13 @@ int main (int argc, char** argv) {
   for (uint8_t* pc = &memory[0]; pc < &memory[65536];) {
     /*pbyte(*pc);*/
     switch (*pc) {
+      case 0x0E:
+        printf("LD C,d8\n");
+        PR8(c);
+        lr35902.registers.c = *(pc + 1);
+        PR8(c);
+        pc += 2;
+        break;
       case 0x20:
         // Jump Relative
         // relative to the end of the full instruction
