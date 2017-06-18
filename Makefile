@@ -1,5 +1,5 @@
 default:
-	cc main.c -o pocketgb
+	cc cpu.c main.c -o pocketgb
 
 clean:
 	rm -f pocketgb *.o
