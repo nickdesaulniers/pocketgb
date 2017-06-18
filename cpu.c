@@ -19,17 +19,32 @@ static uint16_t load_d16 (const struct cpu* const lr35902) {
   uint16_t pc = lr35902->registers.pc;
   uint8_t* mem = lr35902->memory;
 
-  size_t pc8 = pc << 1;
-  size_t addr_of_d16 = pc8 + 1;
-  uint16_t d16 = load_16(addr_of_d16, mem);
-  return d16;
+  return load_16(pc + 1, mem);
 }
 
 static void LD_SP_d16 (struct cpu* const lr35902) {
-  printf("LD SP,d16\n");
+  puts("LD SP,d16");
   pshort(lr35902->registers.sp);
   lr35902->registers.sp = load_d16(lr35902);
   pshort(lr35902->registers.sp);
+  lr35902->registers.pc += 3;
+}
+
+static void XOR_A (struct cpu* const lr35902) {
+  puts("XOR A");
+  lr35902->registers.a = 0;
+  lr35902->registers.f.z = 1;
+  lr35902->registers.f.n = 0;
+  lr35902->registers.f.h = 0;
+  lr35902->registers.f.c = 0;
+  ++lr35902->registers.pc;
+}
+
+static void LD_HL_d16 (struct cpu* const lr35902) {
+  puts("LD HL,d16");
+  pshort(lr35902->registers.hl);
+  lr35902->registers.hl = load_d16(lr35902);
+  pshort(lr35902->registers.hl);
   lr35902->registers.pc += 3;
 }
 
@@ -37,15 +52,15 @@ static void LD_SP_d16 (struct cpu* const lr35902) {
 static const instr opcodes [256] = {
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 0x
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 1x
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 2x
-  0, &LD_SP_d16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 3x
+  0, LD_HL_d16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 2x
+  0, LD_SP_d16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 3x
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 4x
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 5x
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 6x
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 7x
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 8x
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 9x
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // Ax
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, XOR_A, // Ax
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // Bx
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // Cx
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // Dx

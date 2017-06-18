@@ -40,6 +40,6 @@ int main (int argc, char** argv) {
   while (1) {
     instr i = decode(&lr35902);
     i(&lr35902);
-    break;
+    puts("===");
   }
 }
