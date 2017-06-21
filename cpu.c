@@ -34,6 +34,13 @@ static int8_t load_r8 (const struct cpu* const cpu) {
   return (int8_t) load_d8(cpu);
 }
 
+static void store_d16 (const struct cpu* const cpu, const uint16_t addr,
+    const uint16_t value) {
+  uint8_t* mem = cpu->memory;
+  mem[addr] = value & 0xFF;
+  mem[addr + 1] = value >> 8;
+}
+
 static void CB_BIT_7_H (struct cpu* const lr35902) {
   puts("BIT 7,H");
   printf("h: %d\n", lr35902->registers.h);
@@ -44,9 +51,23 @@ static void CB_BIT_7_H (struct cpu* const lr35902) {
   lr35902->registers.f.h = 0;
 }
 
+static void CB_RL_C (struct cpu* const lr35902) {
+  // rotate left aka circular shift
+  puts("RL C");
+  const uint8_t n = lr35902->registers.c;
+  const uint8_t r = (n << 1) | lr35902->registers.f.c;
+  pbyte(lr35902->registers.c);
+  lr35902->registers.f.z = r == 0;
+  lr35902->registers.f.n = 0;
+  lr35902->registers.f.h = 0;
+  lr35902->registers.f.c = (n & 0x80) != 0;
+  lr35902->registers.c = r;
+  pbyte(lr35902->registers.c);
+}
+
 static const instr cb_opcodes [256] = {
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 0x
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 1x
+  0, CB_RL_C, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 1x
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 2x
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 3x
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 4x
@@ -79,6 +100,17 @@ static void handle_cb (struct cpu* const cpu) {
   ++cpu->registers.pc;
 }
 
+static void INC_C (struct cpu* const lr35902) {
+  puts("INC C");
+  pbyte(lr35902->registers.c);
+  ++lr35902->registers.c;
+  pbyte(lr35902->registers.c);
+  ++lr35902->registers.pc;
+  lr35902->registers.f.z = lr35902->registers.c == 0;
+  lr35902->registers.f.n = 0;
+  lr35902->registers.f.h = lr35902->registers.c & 0x10 == 0x10;
+}
+
 // normal instructions (non-cb)
 static void LD_SP_d16 (struct cpu* const lr35902) {
   puts("LD SP,d16");
@@ -98,11 +130,25 @@ static void XOR_A (struct cpu* const lr35902) {
   ++lr35902->registers.pc;
 }
 
+static void LD_C_A (struct cpu* const lr35902) {
+  puts("LD C,A");
+  lr35902->registers.c = lr35902->registers.a;
+  ++lr35902->registers.pc;
+}
+
 static void LD_HL_d16 (struct cpu* const lr35902) {
   puts("LD HL,d16");
   pshort(lr35902->registers.hl);
   lr35902->registers.hl = load_d16(lr35902);
   pshort(lr35902->registers.hl);
+  lr35902->registers.pc += 3;
+}
+
+static void LD_DE_d16 (struct cpu* const lr35902) {
+  puts("LD DE,d16");
+  pshort(lr35902->registers.de);
+  lr35902->registers.de = load_d16(lr35902);
+  pshort(lr35902->registers.de);
   lr35902->registers.pc += 3;
 }
 
@@ -121,8 +167,42 @@ static void LD_DEREF_HL_DEC_A (struct cpu* const lr35902) {
   ++lr35902->registers.pc;
 }
 
+// TODO: combine this with LD_DEREF_HL_DEC_A
+static void LD_DEREF_HL_A (struct cpu* const lr35902) {
+  puts("LD (HL),A");
+  uint8_t* mem = lr35902->memory;
+
+  pbyte(mem[lr35902->registers.hl]);
+  mem[lr35902->registers.hl] = lr35902->registers.a;
+  pbyte(mem[lr35902->registers.hl]);
+
+  ++lr35902->registers.pc;
+}
+
 static void LD_DEREF_C_A (struct cpu* const lr35902) {
-  puts("LD (C),A)");
+  puts("LD (C),A");
+  uint8_t* mem = lr35902->memory;
+
+  // http://www.chrisantonellis.com/files/gameboy/gb-instructions.txt
+  pbyte(mem[lr35902->registers.c + 0xFF00]);
+  mem[lr35902->registers.c + 0xFF00] = lr35902->registers.a;
+  pbyte(mem[lr35902->registers.c + 0xFF00]);
+
+  // Errata in:
+  // http://pastraiser.com/cpu/gameboy/gameboy_opcodes.html
+  // instr is actually length 1, not 2
+  ++lr35902->registers.pc;
+}
+
+static void LDH_DEREF_a8_A (struct cpu* const lr35902) {
+  puts("LDH (a8),A");
+  uint8_t* mem = lr35902->memory;
+  uint8_t a8 = load_d8(lr35902);
+  printf("where a8 == %d\n", a8);
+
+  mem[a8 + 0xFF00] = lr35902->registers.a;
+
+  lr35902->registers.pc += 2;
 }
 
 static void JR_NZ_r8 (struct cpu* const lr35902) {
@@ -157,23 +237,86 @@ static void LD_A_d8 (struct cpu* const lr35902) {
   lr35902->registers.pc += 2;
 }
 
+static void LD_B_d8 (struct cpu* const lr35902) {
+  puts("LD B,d8");
+  pbyte(lr35902->registers.b);
+  lr35902->registers.b = load_d8(lr35902);
+  pbyte(lr35902->registers.b);
+  lr35902->registers.pc += 2;
+}
+
+static void LD_A_DEREF_DE (struct cpu* const lr35902) {
+  puts("LD A,(DE)");
+  uint8_t* mem = lr35902->memory;
+
+  pbyte(lr35902->registers.a);
+  lr35902->registers.a = mem[lr35902->registers.de];
+  pbyte(lr35902->registers.a);
+  ++lr35902->registers.pc;
+}
+
+static void PUSH_BC (struct cpu* const lr35902) {
+  puts("PUSH BC");
+
+  lr35902->registers.sp -= 2;
+  pshort(lr35902->registers.bc);
+  store_d16(lr35902, lr35902->registers.sp, lr35902->registers.bc);
+  ++lr35902->registers.pc;
+}
+
+static void POP_BC (struct cpu* const lr35902) {
+  puts("POP BC");
+  uint8_t* mem = lr35902->memory;
+
+  pshort(lr35902->registers.bc);
+  lr35902->registers.bc = load_16(lr35902->registers.sp, mem);
+  pshort(lr35902->registers.bc);
+  lr35902->registers.sp += 2;
+  ++lr35902->registers.pc;
+}
+
+static void CALL_a16 (struct cpu* const lr35902) {
+  puts("CALL a16");
+  // push address of next instruction onto stack
+  pshort(lr35902->registers.sp);
+  lr35902->registers.sp -= 2;
+  store_d16(lr35902, lr35902->registers.sp, lr35902->registers.pc + 3);
+
+  // jump to address
+  uint8_t a16 = load_d16(lr35902);
+  lr35902->registers.pc = a16;
+}
+
+static void RLA (struct cpu* const lr35902) {
+  puts("RLA");
+  const uint8_t n = lr35902->registers.a;
+  const uint8_t r = (n << 1) | lr35902->registers.f.c;
+  pbyte(lr35902->registers.a);
+  lr35902->registers.f.z = 0;
+  lr35902->registers.f.n = 0;
+  lr35902->registers.f.h = 0;
+  lr35902->registers.f.c = (n & 0x80) != 0;
+  lr35902->registers.a = r;
+  pbyte(lr35902->registers.a);
+  ++lr35902->registers.pc;
+}
 
 static const instr opcodes [256] = {
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, LD_C_d8, 0, // 0x
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 1x
+  0, 0, 0, 0, 0, 0, LD_B_d8, 0, 0, 0, 0, 0, INC_C, 0, LD_C_d8, 0, // 0x
+  0, LD_DE_d16, 0, 0, 0, 0, 0, RLA, 0, 0, LD_A_DEREF_DE, 0, 0, 0, 0, 0, // 1x
   JR_NZ_r8, LD_HL_d16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 2x
   0, LD_SP_d16, LD_DEREF_HL_DEC_A, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, LD_A_d8, 0, // 3x
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 4x
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, LD_C_A, // 4x
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 5x
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 6x
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 7x
+  0, 0, 0, 0, 0, 0, 0, LD_DEREF_HL_A, 0, 0, 0, 0, 0, 0, 0, 0, // 7x
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 8x
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 9x
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, XOR_A, // Ax
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // Bx
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, handle_cb, 0, 0, 0, 0, // Cx
+  0, POP_BC, 0, 0, 0, PUSH_BC, 0, 0, 0, 0, 0, handle_cb, 0, CALL_a16, 0, 0, // Cx
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // Dx
-  0, LD_DEREF_C_A, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // Ex
+  LDH_DEREF_a8_A, 0, LD_DEREF_C_A, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // Ex
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  // Fx
 };
 
