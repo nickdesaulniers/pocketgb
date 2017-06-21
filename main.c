@@ -25,7 +25,7 @@ int main (int argc, char** argv) {
   // TODO: malloc
   uint8_t memory [65536];
   // poison value
-  memset(&memory, 0xF7, 65536);
+  memset(&memory, 0xF7, sizeof(memory));
   // TODO: registers get initialized differently based on model
   struct cpu lr35902 = {0};
   lr35902.memory = memory;
