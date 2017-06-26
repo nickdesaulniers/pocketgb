@@ -127,26 +127,33 @@ static void INC_DE (struct cpu* const lr35902) {
   ++lr35902->registers.pc;
 }
 
+#define DEC_REGISTER(reg) do {\
+  --lr35902->registers.reg; \
+  ++lr35902->registers.pc; \
+  lr35902->registers.f.z = lr35902->registers.reg == 0; \
+  lr35902->registers.f.n = 1; \
+  lr35902->registers.f.h = (lr35902->registers.reg & 0x10) == 0x10; \
+} while(0)
+
 static void DEC_A (struct cpu* const lr35902) {
   puts("DEC A");
   pbyte(lr35902->registers.a);
-  --lr35902->registers.a;
+  DEC_REGISTER(a);
   pbyte(lr35902->registers.a);
-  ++lr35902->registers.pc;
-  lr35902->registers.f.z = lr35902->registers.a == 0;
-  lr35902->registers.f.n = 1;
-  lr35902->registers.f.h = (lr35902->registers.a & 0x10) == 0x10;
 }
 
 static void DEC_B (struct cpu* const lr35902) {
   puts("DEC B");
   pbyte(lr35902->registers.b);
-  --lr35902->registers.b;
+  DEC_REGISTER(b);
   pbyte(lr35902->registers.b);
-  ++lr35902->registers.pc;
-  lr35902->registers.f.z = lr35902->registers.b == 0;
-  lr35902->registers.f.n = 1;
-  lr35902->registers.f.h = (lr35902->registers.b & 0x10) == 0x10;
+}
+
+static void DEC_C (struct cpu* const lr35902) {
+  puts("DEC C");
+  pbyte(lr35902->registers.c);
+  DEC_REGISTER(c);
+  pbyte(lr35902->registers.c);
 }
 
 // normal instructions (non-cb)
@@ -288,6 +295,14 @@ static void LD_B_d8 (struct cpu* const lr35902) {
   lr35902->registers.pc += 2;
 }
 
+static void LD_L_d8 (struct cpu* const lr35902) {
+  puts("LD L,d8");
+  pbyte(lr35902->registers.l);
+  lr35902->registers.l = load_d8(lr35902);
+  pbyte(lr35902->registers.l);
+  lr35902->registers.pc += 2;
+}
+
 static void LD_A_DEREF_DE (struct cpu* const lr35902) {
   puts("LD A,(DE)");
   uint8_t* const mem = lr35902->memory;
@@ -327,19 +342,37 @@ static void POP_BC (struct cpu* const lr35902) {
   ++lr35902->registers.pc;
 }
 
+static void __JR_r8 (struct cpu* const lr35902) {
+  lr35902->registers.pc += load_r8(lr35902) + 2;
+}
+
+static void JR_r8 (struct cpu* const lr35902) {
+  puts("JR r8");
+  // TODO: remove the double load when not debugging
+  int8_t r8 = load_r8(lr35902);
+  printf("where r8 == %d\n", r8);
+  pshort(lr35902->registers.pc);
+  __JR_r8(lr35902);
+  pshort(lr35902->registers.pc);
+}
+
+static void __JR_COND_r8 (struct cpu* const lr35902, int cond) {
+  if (cond) {
+    puts("jumping");
+    __JR_r8(lr35902);
+  } else {
+    puts("not jumping");
+    lr35902->registers.pc += 2;
+  }
+}
+
 static void JR_NZ_r8 (struct cpu* const lr35902) {
   puts("JR NZ,r8");
   int8_t r8 = load_r8(lr35902);
   printf("where r8 == %d\n", r8);
   pshort(lr35902->registers.pc);
 
-  if (lr35902->registers.f.z) {
-    puts("not jumping");
-    lr35902->registers.pc += 2;
-  } else {
-    puts("jumping");
-    lr35902->registers.pc += r8 + 2;
-  }
+  __JR_COND_r8(lr35902, !lr35902->registers.f.z);
   pshort(lr35902->registers.pc);
 }
 
@@ -349,13 +382,7 @@ static void JR_Z_r8 (struct cpu* const lr35902) {
   printf("where r8 == %d\n", r8);
   pshort(lr35902->registers.pc);
 
-  if (lr35902->registers.f.z) {
-    puts("jumping");
-    lr35902->registers.pc += r8 + 2;
-  } else {
-    puts("not jumping");
-    lr35902->registers.pc += 2;
-  }
+  __JR_COND_r8(lr35902, lr35902->registers.f.z);
   pshort(lr35902->registers.pc);
 }
 
@@ -411,9 +438,9 @@ static void CP_d8 (struct cpu* const lr35902) {
 }
 
 static const instr opcodes [256] = {
-  0, 0, 0, 0, 0, DEC_B, LD_B_d8, 0, 0, 0, 0, 0, INC_C, 0, LD_C_d8, 0, // 0x
-  0, LD_DE_d16, 0, INC_DE, 0, 0, 0, RLA, 0, 0, LD_A_DEREF_DE, 0, 0, 0, 0, 0, // 1x
-  JR_NZ_r8, LD_HL_d16, LD_DEREF_HL_INC_A, INC_HL, 0, 0, 0, 0, JR_Z_r8, 0, 0, 0, 0, 0, 0, 0, // 2x
+  0, 0, 0, 0, 0, DEC_B, LD_B_d8, 0, 0, 0, 0, 0, INC_C, DEC_C, LD_C_d8, 0, // 0x
+  0, LD_DE_d16, 0, INC_DE, 0, 0, 0, RLA, JR_r8, 0, LD_A_DEREF_DE, 0, 0, 0, 0, 0, // 1x
+  JR_NZ_r8, LD_HL_d16, LD_DEREF_HL_INC_A, INC_HL, 0, 0, 0, 0, JR_Z_r8, 0, 0, 0, 0, 0, LD_L_d8, 0, // 2x
   0, LD_SP_d16, LD_DEREF_HL_DEC_A, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, DEC_A, LD_A_d8, 0, // 3x
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, LD_C_A, // 4x
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 5x
