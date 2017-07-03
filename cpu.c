@@ -100,15 +100,31 @@ static void handle_cb (struct cpu* const cpu) {
   ++cpu->registers.pc;
 }
 
+#define INC_REGISTER(reg) do { \
+  ++lr35902->registers.reg; \
+  ++lr35902->registers.pc; \
+  lr35902->registers.f.z = lr35902->registers.reg == 0; \
+  lr35902->registers.f.n = 0; \
+  lr35902->registers.f.h = (lr35902->registers.reg & 0x10) == 0x10; \
+} while(0)
+
 static void INC_C (struct cpu* const lr35902) {
   puts("INC C");
   pbyte(lr35902->registers.c);
-  ++lr35902->registers.c;
+  INC_REGISTER(c);
+  /*++lr35902->registers.c;*/
   pbyte(lr35902->registers.c);
-  ++lr35902->registers.pc;
-  lr35902->registers.f.z = lr35902->registers.c == 0;
-  lr35902->registers.f.n = 0;
-  lr35902->registers.f.h = (lr35902->registers.c & 0x10) == 0x10;
+  /*++lr35902->registers.pc;*/
+  /*lr35902->registers.f.z = lr35902->registers.c == 0;*/
+  /*lr35902->registers.f.n = 0;*/
+  /*lr35902->registers.f.h = (lr35902->registers.c & 0x10) == 0x10;*/
+}
+
+static void INC_B (struct cpu* const lr35902) {
+  puts("INC B");
+  pbyte(lr35902->registers.b);
+  INC_REGISTER(b);
+  pbyte(lr35902->registers.b);
 }
 
 static void INC_HL (struct cpu* const lr35902) {
@@ -127,7 +143,7 @@ static void INC_DE (struct cpu* const lr35902) {
   ++lr35902->registers.pc;
 }
 
-#define DEC_REGISTER(reg) do {\
+#define DEC_REGISTER(reg) do { \
   --lr35902->registers.reg; \
   ++lr35902->registers.pc; \
   lr35902->registers.f.z = lr35902->registers.reg == 0; \
@@ -184,6 +200,18 @@ static void LD_C_A (struct cpu* const lr35902) {
 static void LD_A_E (struct cpu* const lr35902) {
   puts("LD A,E");
   lr35902->registers.a = lr35902->registers.e;
+  ++lr35902->registers.pc;
+}
+
+static void LD_H_A (struct cpu* const lr35902) {
+  puts("LD H,A");
+  lr35902->registers.h = lr35902->registers.a;
+  ++lr35902->registers.pc;
+}
+
+static void LD_D_A (struct cpu* const lr35902) {
+  puts("LD D,A");
+  lr35902->registers.d = lr35902->registers.a;
   ++lr35902->registers.pc;
 }
 
@@ -271,6 +299,17 @@ static void LDH_DEREF_a8_A (struct cpu* const lr35902) {
   lr35902->registers.pc += 2;
 }
 
+static void LDH_A_DEREF_a8 (struct cpu* const lr35902) {
+  puts("LDH A,(a8)");
+  uint8_t* mem = lr35902->memory;
+  uint8_t a8 = load_d8(lr35902);
+  printf("where a8 == %d\n", a8);
+
+  lr35902->registers.a = mem[a8 + 0xFF00];
+  lr35902->registers.pc += 2;
+  getchar();
+}
+
 static void LD_C_d8 (struct cpu* const lr35902) {
   puts("LD C,d8");
   pbyte(lr35902->registers.c);
@@ -300,6 +339,14 @@ static void LD_L_d8 (struct cpu* const lr35902) {
   pbyte(lr35902->registers.l);
   lr35902->registers.l = load_d8(lr35902);
   pbyte(lr35902->registers.l);
+  lr35902->registers.pc += 2;
+}
+
+static void LD_E_d8 (struct cpu* const lr35902) {
+  puts("LD E,d8");
+  pbyte(lr35902->registers.e);
+  lr35902->registers.e = load_d8(lr35902);
+  pbyte(lr35902->registers.e);
   lr35902->registers.pc += 2;
 }
 
@@ -373,7 +420,6 @@ static void JR_NZ_r8 (struct cpu* const lr35902) {
   pshort(lr35902->registers.pc);
 
   __JR_COND_r8(lr35902, !lr35902->registers.f.z);
-  pshort(lr35902->registers.pc);
 }
 
 static void JR_Z_r8 (struct cpu* const lr35902) {
@@ -438,13 +484,13 @@ static void CP_d8 (struct cpu* const lr35902) {
 }
 
 static const instr opcodes [256] = {
-  0, 0, 0, 0, 0, DEC_B, LD_B_d8, 0, 0, 0, 0, 0, INC_C, DEC_C, LD_C_d8, 0, // 0x
-  0, LD_DE_d16, 0, INC_DE, 0, 0, 0, RLA, JR_r8, 0, LD_A_DEREF_DE, 0, 0, 0, 0, 0, // 1x
+  0, 0, 0, 0, INC_B, DEC_B, LD_B_d8, 0, 0, 0, 0, 0, INC_C, DEC_C, LD_C_d8, 0, // 0x
+  0, LD_DE_d16, 0, INC_DE, 0, 0, 0, RLA, JR_r8, 0, LD_A_DEREF_DE, 0, 0, 0, LD_E_d8, 0, // 1x
   JR_NZ_r8, LD_HL_d16, LD_DEREF_HL_INC_A, INC_HL, 0, 0, 0, 0, JR_Z_r8, 0, 0, 0, 0, 0, LD_L_d8, 0, // 2x
   0, LD_SP_d16, LD_DEREF_HL_DEC_A, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, DEC_A, LD_A_d8, 0, // 3x
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, LD_C_A, // 4x
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 5x
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 6x
+  0, 0, 0, 0, 0, 0, 0, LD_D_A, 0, 0, 0, 0, 0, 0, 0, 0, // 5x
+  0, 0, 0, 0, 0, 0, 0, LD_H_A, 0, 0, 0, 0, 0, 0, 0, 0, // 6x
   0, 0, 0, 0, 0, 0, 0, LD_DEREF_HL_A, 0, 0, 0, LD_A_E, 0, 0, 0, 0, // 7x
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 8x
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 9x
@@ -453,7 +499,7 @@ static const instr opcodes [256] = {
   0, POP_BC, 0, 0, 0, PUSH_BC, 0, 0, 0, RET, 0, handle_cb, 0, CALL_a16, 0, 0, // Cx
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // Dx
   LDH_DEREF_a8_A, 0, LD_DEREF_C_A, 0, 0, 0, 0, 0, 0, 0, LD_DEREF_a16_A, 0, 0, 0, 0, 0, // Ex
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, CP_d8, 0  // Fx
+  LDH_A_DEREF_a8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, CP_d8, 0  // Fx
 };
 
 instr decode (const struct cpu* const cpu) {
