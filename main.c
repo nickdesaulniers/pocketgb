@@ -8,12 +8,13 @@
 // TODO: fseek and compare fread size
 int read_rom_into_memory (const char* const path, struct mmu* const mem) {
   FILE* f = fopen(path, "r");
-  if (f) {
-     fread(mem->memory, 1, 256, f);
-     fclose(f);
-     return 0;
+  if (!f) {
+    return -1;
   }
-  return -1;
+  const size_t rom_size = 256;
+  const size_t bytes_read = fread(mem->memory, 1, rom_size, f);
+  fclose(f);
+  return bytes_read != rom_size;
 }
 
 int main (int argc, char** argv) {
