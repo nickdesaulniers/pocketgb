@@ -11,22 +11,14 @@ void pshort(const uint16_t s) {
   printf("0x%04hX\n", s);
 }
 
-static uint16_t load_16 (const size_t index, const uint8_t* const mem) {
-  return (mem[index + 1] << 8) | mem[index];
-}
-
 static uint16_t load_d16 (const struct cpu* const lr35902) {
   uint16_t pc = lr35902->registers.pc;
-  uint8_t* mem = lr35902->memory;
-
-  return load_16(pc + 1, mem);
+  return rw(lr35902->mmu, pc + 1);
 }
 
 static uint8_t load_d8 (const struct cpu* const lr35902) {
   uint16_t pc = lr35902->registers.pc;
-  uint8_t* mem = lr35902->memory;
-
-  return mem[pc + 1];
+  return rb(lr35902->mmu, pc + 1);
 }
 
 static int8_t load_r8 (const struct cpu* const cpu) {
@@ -36,9 +28,7 @@ static int8_t load_r8 (const struct cpu* const cpu) {
 
 static void store_d16 (const struct cpu* const cpu, const uint16_t addr,
     const uint16_t value) {
-  uint8_t* mem = cpu->memory;
-  mem[addr] = value & 0xFF;
-  mem[addr + 1] = value >> 8;
+  ww(cpu->mmu, addr, value);
 }
 
 static void CB_BIT_7_H (struct cpu* const lr35902) {
@@ -86,7 +76,7 @@ static const instr cb_opcodes [256] = {
 
 instr decode_cb (const struct cpu* const cpu) {
   uint16_t pc = cpu->registers.pc;
-  uint8_t opcode = cpu->memory[pc];
+  uint8_t opcode = rb(cpu->mmu, pc);
   pbyte(opcode);
   instr i = cb_opcodes[opcode];
   assert(i != 0);
@@ -233,11 +223,10 @@ static void LD_DE_d16 (struct cpu* const lr35902) {
 
 static void LD_DEREF_HL_DEC_A (struct cpu* const lr35902) {
   puts("LD (HL-),A");
-  uint8_t* mem = lr35902->memory;
 
-  pbyte(mem[lr35902->registers.hl]);
-  mem[lr35902->registers.hl] = lr35902->registers.a;
-  pbyte(mem[lr35902->registers.hl]);
+  pbyte(rb(lr35902->mmu, lr35902->registers.hl));
+  wb(lr35902->mmu, lr35902->registers.hl, lr35902->registers.a);
+  pbyte(rb(lr35902->mmu, lr35902->registers.hl));
 
   pshort(lr35902->registers.hl);
   --lr35902->registers.hl;
@@ -248,11 +237,10 @@ static void LD_DEREF_HL_DEC_A (struct cpu* const lr35902) {
 
 static void LD_DEREF_HL_INC_A (struct cpu* const lr35902) {
   puts("LD (HL+),A");
-  uint8_t* const mem = lr35902->memory;
 
-  pbyte(mem[lr35902->registers.hl]);
-  mem[lr35902->registers.hl] = lr35902->registers.a;
-  pbyte(mem[lr35902->registers.hl]);
+  pbyte(rb(lr35902->mmu, lr35902->registers.hl));
+  wb(lr35902->mmu, lr35902->registers.hl, lr35902->registers.a);
+  pbyte(rb(lr35902->mmu, lr35902->registers.hl));
 
   pshort(lr35902->registers.hl);
   ++lr35902->registers.hl;
@@ -264,23 +252,21 @@ static void LD_DEREF_HL_INC_A (struct cpu* const lr35902) {
 // TODO: combine this with LD_DEREF_HL_DEC_A
 static void LD_DEREF_HL_A (struct cpu* const lr35902) {
   puts("LD (HL),A");
-  uint8_t* mem = lr35902->memory;
 
-  pbyte(mem[lr35902->registers.hl]);
-  mem[lr35902->registers.hl] = lr35902->registers.a;
-  pbyte(mem[lr35902->registers.hl]);
+  pbyte(rb(lr35902->mmu, lr35902->registers.hl));
+  wb(lr35902->mmu, lr35902->registers.hl, lr35902->registers.a);
+  pbyte(rb(lr35902->mmu, lr35902->registers.hl));
 
   ++lr35902->registers.pc;
 }
 
 static void LD_DEREF_C_A (struct cpu* const lr35902) {
   puts("LD (C),A");
-  uint8_t* mem = lr35902->memory;
 
   // http://www.chrisantonellis.com/files/gameboy/gb-instructions.txt
-  pbyte(mem[lr35902->registers.c + 0xFF00]);
-  mem[lr35902->registers.c + 0xFF00] = lr35902->registers.a;
-  pbyte(mem[lr35902->registers.c + 0xFF00]);
+  pbyte(rb(lr35902->mmu, lr35902->registers.c + 0xFF00));
+  wb(lr35902->mmu, lr35902->registers.c + 0xFF00, lr35902->registers.a);
+  pbyte(rb(lr35902->mmu, lr35902->registers.c + 0xFF00));
 
   // Errata in:
   // http://pastraiser.com/cpu/gameboy/gameboy_opcodes.html
@@ -290,22 +276,20 @@ static void LD_DEREF_C_A (struct cpu* const lr35902) {
 
 static void LDH_DEREF_a8_A (struct cpu* const lr35902) {
   puts("LDH (a8),A");
-  uint8_t* mem = lr35902->memory;
   uint8_t a8 = load_d8(lr35902);
   printf("where a8 == %d\n", a8);
 
-  mem[a8 + 0xFF00] = lr35902->registers.a;
+  wb(lr35902->mmu, a8 + 0xFF00, lr35902->registers.a);
 
   lr35902->registers.pc += 2;
 }
 
 static void LDH_A_DEREF_a8 (struct cpu* const lr35902) {
   puts("LDH A,(a8)");
-  uint8_t* mem = lr35902->memory;
   uint8_t a8 = load_d8(lr35902);
   printf("where a8 == %d\n", a8);
 
-  lr35902->registers.a = mem[a8 + 0xFF00];
+  lr35902->registers.a = rb(lr35902->mmu, a8 + 0xFF00);
   lr35902->registers.pc += 2;
   getchar();
 }
@@ -352,10 +336,9 @@ static void LD_E_d8 (struct cpu* const lr35902) {
 
 static void LD_A_DEREF_DE (struct cpu* const lr35902) {
   puts("LD A,(DE)");
-  uint8_t* const mem = lr35902->memory;
 
   pbyte(lr35902->registers.a);
-  lr35902->registers.a = mem[lr35902->registers.de];
+  lr35902->registers.a = rb(lr35902->mmu, lr35902->registers.de);
   pbyte(lr35902->registers.a);
   ++lr35902->registers.pc;
 }
@@ -364,8 +347,7 @@ static void LD_DEREF_a16_A (struct cpu* const lr35902) {
   puts("LD (a16),A");
   const uint16_t a16 = load_d16(lr35902);
   pshort(a16);
-  uint8_t* const mem = lr35902->memory;
-  mem[a16] = lr35902->registers.a;
+  wb(lr35902->mmu, a16, lr35902->registers.a);
   lr35902->registers.pc += 3;
 }
 
@@ -380,10 +362,9 @@ static void PUSH_BC (struct cpu* const lr35902) {
 
 static void POP_BC (struct cpu* const lr35902) {
   puts("POP BC");
-  const uint8_t* const mem = lr35902->memory;
 
   pshort(lr35902->registers.bc);
-  lr35902->registers.bc = load_16(lr35902->registers.sp, mem);
+  lr35902->registers.bc = rw(lr35902->mmu, lr35902->registers.sp);
   pshort(lr35902->registers.bc);
   lr35902->registers.sp += 2;
   ++lr35902->registers.pc;
@@ -446,9 +427,8 @@ static void CALL_a16 (struct cpu* const lr35902) {
 
 static void RET (struct cpu* const lr35902) {
   puts("RET");
-  uint8_t* const mem = lr35902->memory;
   // pop 2B from stack
-  const uint16_t a = load_16(lr35902->registers.sp, mem);
+  const uint16_t a = rw(lr35902->mmu, lr35902->registers.sp);
   pshort(a);
   lr35902->registers.sp += 2;
   // jump to that address
@@ -504,7 +484,7 @@ static const instr opcodes [256] = {
 
 instr decode (const struct cpu* const cpu) {
   uint16_t pc = cpu->registers.pc;
-  uint8_t opcode = cpu->memory[pc];
+  uint8_t opcode = rb(cpu->mmu, pc);
   pbyte(opcode);
   instr i = opcodes[opcode];
   // unknown instr

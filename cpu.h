@@ -1,5 +1,7 @@
 #include <stdint.h>
 
+#include "mmu.h"
+
 struct cpu {
   struct registers {
     uint8_t a;
@@ -34,7 +36,7 @@ struct cpu {
     uint16_t sp;
     uint16_t pc;
   } registers;
-  uint8_t* memory;
+  struct mmu* mmu;
 };
 
 typedef void (*instr) (struct cpu* const);

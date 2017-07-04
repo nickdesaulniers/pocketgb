@@ -6,10 +6,10 @@
 
 // returns 0 on success
 // TODO: fseek and compare fread size
-int read_rom_into_memory (const char* const path, uint8_t* const memory) {
+int read_rom_into_memory (const char* const path, struct mmu* const mem) {
   FILE* f = fopen(path, "r");
   if (f) {
-     fread(memory, 1, 256, f);
+     fread(mem->memory, 1, 256, f);
      fclose(f);
      return 0;
   }
@@ -22,15 +22,12 @@ int main (int argc, char** argv) {
     return -1;
   }
 
-  // TODO: malloc
-  uint8_t memory [65536];
-  // poison value
-  memset(&memory, 0xF7, sizeof(memory));
+  struct mmu* memory = init_memory();
   // TODO: registers get initialized differently based on model
   struct cpu lr35902 = {0};
-  lr35902.memory = memory;
+  lr35902.mmu = memory;
 
-  int rc = read_rom_into_memory(argv[1], &memory[0]);
+  int rc = read_rom_into_memory(argv[1], memory);
   if (rc != 0) {
     perror(argv[1]);
     return -1;
