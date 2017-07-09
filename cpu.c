@@ -291,7 +291,6 @@ static void LDH_A_DEREF_a8 (struct cpu* const lr35902) {
 
   lr35902->registers.a = rb(lr35902->mmu, a8 + 0xFF00);
   lr35902->registers.pc += 2;
-  getchar();
 }
 
 static void LD_C_d8 (struct cpu* const lr35902) {

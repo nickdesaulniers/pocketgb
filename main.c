@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "cpu.h"
+#include "lcd.h"
 
 // returns 0 on success
 // TODO: fseek and compare fread size
@@ -23,6 +24,7 @@ int main (int argc, char** argv) {
     return -1;
   }
 
+  // TODO: leaks memory
   struct mmu* memory = init_memory();
   // TODO: registers get initialized differently based on model
   struct cpu lr35902 = {0};
@@ -34,10 +36,17 @@ int main (int argc, char** argv) {
     return -1;
   }
 
+  // TODO: init function
+  struct lcd lcd = { 0 };
+  lcd.mmu = memory;
+  lcd.mode = 2;
+
   // TODO: while cpu not halted
   while (1) {
     instr i = decode(&lr35902);
     i(&lr35902);
     puts("===");
+    // TODO: return actual timings from instructions
+    update_lcd(&lcd, 4);
   }
 }

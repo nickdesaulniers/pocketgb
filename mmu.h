@@ -1,3 +1,5 @@
+#pragma once
+
 #include <stdint.h>
 // http://gameboy.mongenel.com/dmg/asmmemmap.html
 struct mmu {
