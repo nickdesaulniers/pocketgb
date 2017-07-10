@@ -4,9 +4,6 @@
 
 void transition (struct lcd* const lcd, const uint8_t mode) {
   printf("LCD: transition from %d to %d\n", lcd->mode, mode);
-  if (mode == 1) {
-    getchar();
-  }
   lcd->mode = mode;
   lcd->cycles_in_current_mode = 0;
 }
