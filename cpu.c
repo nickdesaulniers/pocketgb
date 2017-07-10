@@ -3,12 +3,16 @@
 #include <stdio.h>
 #include "cpu.h"
 
-void pbyte(const uint8_t b) {
+static void pbyte (const uint8_t b) {
   printf("0x%02hhX\n", b);
 }
 
-void pshort(const uint16_t s) {
+static void pshort (const uint16_t s) {
   printf("0x%04hX\n", s);
+}
+
+static void pflags (const struct flags f) {
+  printf("Flags (Z N H C) (%u %u %u %u)\n", f.z, f.n, f.h, f.c);
 }
 
 static uint16_t load_d16 (const struct cpu* const lr35902) {
@@ -565,4 +569,24 @@ instr decode (const struct cpu* const cpu) {
   // unknown instr
   assert(i != 0);
   return i;
+}
+
+
+void cpu_power_up (struct cpu* const cpu) {
+  // TODO: are these just the state after the bios?
+  // looks like yes, except for f. Likely a bug, or possible errata?
+  pshort(cpu->registers.af);
+  pflags(cpu->registers.f);
+  /*pshort(cpu->registers.bc);*/
+  /*pshort(cpu->registers.de);*/
+  /*pshort(cpu->registers.hl);*/
+  /*pshort(cpu->registers.sp);*/
+  cpu->registers.af = 0x01B0;
+  cpu->registers.bc = 0x0013;
+  cpu->registers.de = 0x00D8;
+  cpu->registers.hl = 0x014D;
+  cpu->registers.sp = 0xFFFE;
+  /*pshort(cpu->registers.pc);*/
+  // TODO: likely set this if booted w/o bios
+  /*cpu->registers.pc = 0x0100;*/
 }

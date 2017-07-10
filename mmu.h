@@ -1,9 +1,13 @@
 #pragma once
 
 #include <stdint.h>
+
+#include "cpu.h"
+
 // http://gameboy.mongenel.com/dmg/asmmemmap.html
 struct mmu {
   uint8_t memory [65536];
+  struct cpu* cpu;
 };
 
 struct mmu* init_memory (char** roms, const int len);

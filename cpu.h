@@ -1,16 +1,23 @@
+#pragma once
+
 #include <stdint.h>
 
 #include "mmu.h"
 
 struct cpu {
   struct registers {
-    uint8_t a;
-    struct flags {
-      uint8_t z : 1;
-      uint8_t n : 1;
-      uint8_t h : 1;
-      uint8_t c : 1;
-    } f;
+    union {
+      uint16_t af;
+      struct {
+        struct flags {
+          uint8_t z : 1;
+          uint8_t n : 1;
+          uint8_t h : 1;
+          uint8_t c : 1;
+        } f;
+        uint8_t a;
+      };
+    };
     union {
       uint16_t bc;
       struct {
@@ -42,6 +49,4 @@ struct cpu {
 typedef void (*instr) (struct cpu* const);
 
 instr decode (const struct cpu* const);
-
-// print 8b register
-#define PR8(reg) pbyte(lr35902.registers.reg)
+void cpu_power_up (struct cpu* const);

@@ -11,8 +11,9 @@ int main (int argc, char** argv) {
 
   struct mmu* memory = init_memory(&argv[1], argc - 1);
   // TODO: registers get initialized differently based on model
-  struct cpu lr35902 = {0};
+  struct cpu lr35902 = { 0 };
   lr35902.mmu = memory;
+  memory->cpu = &lr35902;
 
   // TODO: init function
   struct lcd lcd = { 0 };
