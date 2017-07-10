@@ -5,22 +5,45 @@
 #include "cpu.h"
 #include "lcd.h"
 
-// returns 0 on success
-// TODO: fseek and compare fread size
-int read_rom_into_memory (const char* const path, struct mmu* const mem) {
+// return 0 on error
+// truncates down to size_t, though fseek returns a long
+size_t get_filesize (FILE* f) {
+  if (fseek(f, 0L, SEEK_END) != 0) {
+    return 0;
+  }
+  long fsize = ftell(f);
+  if (fsize > SIZE_MAX || fsize <= 0) {
+    return 0;
+  }
+  rewind(f);
+  return fsize;
+}
+
+// return 0 on success
+int read_file_into_memory (const char* const path, void* dest) {
+  printf("opening %s\n", path);
   FILE* f = fopen(path, "r");
   if (!f) {
     return -1;
   }
-  const size_t rom_size = 256;
-  const size_t bytes_read = fread(mem->memory, 1, rom_size, f);
-  fclose(f);
-  return bytes_read != rom_size;
+  size_t fsize = get_filesize(f);
+  if (!fsize) {
+    return -1;
+  }
+
+  size_t read = fread(dest, 1, fsize, f);
+  if (read != fsize) {
+    return -1;
+  }
+
+  if (fclose(f)) {
+    return -1;
+  }
 }
 
 int main (int argc, char** argv) {
-  if (argc < 2) {
-    fprintf(stderr, "USAGE: ./pocketgb <rom.gb>\n");
+  if (argc < 3) {
+    fprintf(stderr, "USAGE: ./pocketgb <bios.gb> <rom.gb>\n");
     return -1;
   }
 
@@ -30,10 +53,12 @@ int main (int argc, char** argv) {
   struct cpu lr35902 = {0};
   lr35902.mmu = memory;
 
-  int rc = read_rom_into_memory(argv[1], memory);
-  if (rc != 0) {
-    perror(argv[1]);
-    return -1;
+  for (int i = argc - 1; i > 0; --i) {
+    int rc = read_file_into_memory(argv[i], memory);
+    if (rc != 0) {
+      perror(argv[i]);
+      return -1;
+    }
   }
 
   // TODO: init function
