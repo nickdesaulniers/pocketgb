@@ -197,6 +197,16 @@ static void XOR_A (struct cpu* const lr35902) {
   ++lr35902->registers.pc;
 }
 
+static void ADD_DEREF_HL (struct cpu* const lr35902) {
+  puts("ADD (HL)");
+  lr35902->registers.a += rb(lr35902->mmu, lr35902->registers.hl);
+  lr35902->registers.f.z = lr35902->registers.a == 0;
+  lr35902->registers.f.n = 0;
+  lr35902->registers.f.h = (lr35902->registers.a & 0x10) == 0x10;
+  lr35902->registers.f.c = (lr35902->registers.a & 0x80) != 0;
+  ++lr35902->registers.pc;
+}
+
 static void SUB_B (struct cpu* const lr35902) {
   puts("SUB B");
   lr35902->registers.a -= lr35902->registers.b;
@@ -213,6 +223,12 @@ static void LD_C_A (struct cpu* const lr35902) {
   ++lr35902->registers.pc;
 }
 
+static void LD_A_B (struct cpu* const lr35902) {
+  puts("LD A,B");
+  lr35902->registers.a = lr35902->registers.b;
+  ++lr35902->registers.pc;
+}
+
 static void LD_A_E (struct cpu* const lr35902) {
   puts("LD A,E");
   lr35902->registers.a = lr35902->registers.e;
@@ -222,6 +238,12 @@ static void LD_A_E (struct cpu* const lr35902) {
 static void LD_A_H (struct cpu* const lr35902) {
   puts("LD A,H");
   lr35902->registers.a = lr35902->registers.h;
+  ++lr35902->registers.pc;
+}
+
+static void LD_A_L (struct cpu* const lr35902) {
+  puts("LD A,L");
+  lr35902->registers.a = lr35902->registers.l;
   ++lr35902->registers.pc;
 }
 
@@ -309,7 +331,8 @@ static void LD_DEREF_C_A (struct cpu* const lr35902) {
 static void LDH_DEREF_a8_A (struct cpu* const lr35902) {
   puts("LDH (a8),A");
   uint8_t a8 = load_d8(lr35902);
-  printf("where a8 == %d\n", a8);
+  printf("where a8 == ");
+  pbyte(a8);
 
   wb(lr35902->mmu, a8 + 0xFF00, lr35902->registers.a);
 
@@ -319,7 +342,8 @@ static void LDH_DEREF_a8_A (struct cpu* const lr35902) {
 static void LDH_A_DEREF_a8 (struct cpu* const lr35902) {
   puts("LDH A,(a8)");
   uint8_t a8 = load_d8(lr35902);
-  printf("where a8 == %d\n", a8);
+  printf("where a8 == ");
+  pbyte(a8);
 
   lr35902->registers.a = rb(lr35902->mmu, a8 + 0xFF00);
   lr35902->registers.pc += 2;
@@ -522,8 +546,8 @@ static const instr opcodes [256] = {
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, LD_C_A, // 4x
   0, 0, 0, 0, 0, 0, 0, LD_D_A, 0, 0, 0, 0, 0, 0, 0, 0, // 5x
   0, 0, 0, 0, 0, 0, 0, LD_H_A, 0, 0, 0, 0, 0, 0, 0, 0, // 6x
-  0, 0, 0, 0, 0, 0, 0, LD_DEREF_HL_A, 0, 0, 0, LD_A_E, LD_A_H, 0, 0, 0, // 7x
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 8x
+  0, 0, 0, 0, 0, 0, 0, LD_DEREF_HL_A, LD_A_B, 0, 0, LD_A_E, LD_A_H, LD_A_L, 0, 0, // 7x
+  0, 0, 0, 0, 0, 0, ADD_DEREF_HL, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 8x
   SUB_B, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 9x
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, XOR_A, // Ax
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, CP_DEREF_HL, 0, // Bx
