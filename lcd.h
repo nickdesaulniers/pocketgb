@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <stdbool.h>
+#include "SDL_render.h"
 #include "mmu.h"
 
 struct lcd {
@@ -12,3 +13,4 @@ struct lcd {
 };
 
 void update_lcd (struct lcd* const lcd, const uint8_t cycles);
+void debug_draw_tilemap (const struct lcd* const lcd, SDL_Renderer* const renderer);

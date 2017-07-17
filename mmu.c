@@ -6,6 +6,8 @@
 
 static void handle_hardware_io_side_effects(struct mmu* const mem,
     const uint16_t addr, const uint8_t val);
+static void handle_tile_write (struct mmu* const mem,
+    const uint16_t addr, const uint8_t val);
 
 uint8_t rb (const struct mmu* const mem, const uint16_t addr) {
   // todo: fancy case statement
@@ -18,6 +20,10 @@ uint16_t rw (const struct mmu* const mem, const uint16_t addr) {
 
 void wb (struct mmu* const mem, const uint16_t addr, const uint8_t val) {
   switch (addr & 0xF000) {
+    case 0x8000:
+    case 0x9000: // intentional fallthrough
+      handle_tile_write(mem, addr, val);
+      break;
     case 0xF000:
       switch (addr & 0x0F00) {
         case 0x0F00:
@@ -145,5 +151,21 @@ static void handle_hardware_io_side_effects(struct mmu* const mem,
           break;
       }
       break;
+  }
+}
+
+
+static void handle_tile_write (struct mmu* const mem,
+    const uint16_t addr, const uint8_t val) {
+  if (addr < 0x87FF) {
+    printf("write to tile set #1 %X\n", addr);
+  } else if (addr < 0x8FFF) {
+    printf("write to tile set #1 or set #0 %X\n", addr);
+  } else if (addr < 0x97FF) {
+    printf("write to tile set #0 %X\n", addr);
+  } else if (addr < 0x9BFF) {
+    printf("write to tile map #1 %X\n", addr);
+  } else {
+    printf("write to tile map #0 %X\n", addr);
   }
 }
