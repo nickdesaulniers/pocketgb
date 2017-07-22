@@ -1,5 +1,12 @@
+SOURCES = \
+	cpu.c \
+	mmu.c \
+	lcd.c \
+	window_list.c \
+	main.c
+
 default:
-	cc cpu.c mmu.c lcd.c main.c `pkg-config --cflags sdl2 --libs sdl2` -o pocketgb
+	cc $(SOURCES) `pkg-config --cflags sdl2 --libs sdl2` -o pocketgb
 
 clean:
 	rm -f pocketgb *.o

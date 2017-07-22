@@ -6,12 +6,9 @@
 
 #include "cpu.h"
 #include "lcd.h"
+#include "window_list.h"
 
-void perror_sdl (const char* const msg) {
-  fprintf(stderr, "%s: %s\n", msg, SDL_GetError());
-}
-
-bool breakpoint (const struct cpu* const cpu, const uint16_t pc_addr) {
+static bool breakpoint (const struct cpu* const cpu, const uint16_t pc_addr) {
   int should_break = cpu->registers.pc == pc_addr;
   /*if (should_break) {*/
     /*printf("breaking at 0x%X\n", pc_addr);*/
@@ -37,25 +34,9 @@ int main (int argc, char** argv) {
   lcd.mmu = memory;
   lcd.mode = 2;
 
-  // SDL
   assert(SDL_Init(SDL_INIT_VIDEO) == 0);
-  // TODO: SDL_CreateWindowAndRenderer
-  SDL_Window* window = SDL_CreateWindow("pocketgb", SDL_WINDOWPOS_UNDEFINED,
-      SDL_WINDOWPOS_UNDEFINED, 640, 480, 0);
-  if (!window) {
-    perror_sdl("unable to open window");
-    return -1;
-  }
-  SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, 0);
-  if (!renderer) {
-    perror_sdl("unable to create renderer");
-    return -1;
-  }
-
-  SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-  SDL_RenderClear(renderer);
-  SDL_RenderPresent(renderer);
-  /*SDL_Delay(5000);*/
+  struct window_list window_list_head;
+  window_list_init(&window_list_head);
   SDL_Event e;
 
   // TODO: while cpu not halted
@@ -73,12 +54,11 @@ int main (int argc, char** argv) {
 
     if (breakpoint(&lr35902, 0x0055)) {
       puts("printing tilemap");
-      debug_draw_tilemap(&lcd, renderer);
+      debug_draw_tilemap(&lcd, &window_list_head);
     }
   }
 
-  SDL_DestroyWindow(window);
+  window_list_deinit(&window_list_head);
   SDL_Quit();
-
   deinit_memory(memory);
 }

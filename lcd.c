@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <stdio.h>
+#include "SDL_render.h"
 #include "lcd.h"
 
 void transition (struct lcd* const lcd, const uint8_t mode) {
@@ -14,14 +15,15 @@ void update_line (struct lcd* const lcd, uint8_t line) {
   wb(lcd->mmu, 0xFF44, line);
 }
 
+static int is_lcd_on (const struct lcd* const lcd) {
+  const uint8_t lcdc = rb(lcd->mmu, 0xFF00);
+  return !!(lcdc & (1 << 7));
+}
+
 void update_lcd (struct lcd* const lcd, const uint8_t cycles) {
-  // TODO: MMU needs to set this
-  /*if (!lcd->enabled) {*/
-    /*return;*/
-  /*}*/
-  /*const uint8_t lcdc = rb(lcd->mmu, 0xFF40);*/
-  /*// make sure the lcd is on*/
-  /*assert(lcdc & (1 << 7));*/
+  if (!is_lcd_on(lcd)) {
+    return;
+  }
 
   lcd->total_cycles += cycles;
   lcd->cycles_in_current_mode += cycles;
@@ -119,10 +121,6 @@ static void shade_tiles (uint8_t* tile_data, const struct lcd* const lcd) {
       ++tile_data;
     }
     puts("");
-    // TODO: only print 25 tiles for now
-    /*if (addr == base + 16 * 25) {*/
-      /*break;*/
-    /*}*/
   }
 }
 
@@ -150,11 +148,38 @@ static void paint_tiles (const uint8_t* tile_data,
   }
 }
 
+static void perror_sdl (const char* const msg) {
+  fprintf(stderr, "%s: %s\n", msg, SDL_GetError());
+}
+
+static SDL_Renderer* create_tileset_window (
+    struct window_list* const window_list_head) {
+
+  SDL_Window* window = SDL_CreateWindow("Debug Tileset",
+      SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 16 * 8, 16 * 8, 0);
+  if (!window) {
+    perror_sdl("unable to open window");
+    return NULL;
+  }
+  SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, 0);
+  if (!renderer) {
+    perror_sdl("unable to create renderer");
+    // TODO: close window?
+    return NULL;
+  }
+  SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+  SDL_RenderClear(renderer);
+  SDL_RenderPresent(renderer);
+  window_list_insert(window_list_head, window);
+  return renderer;
+}
+
 
 // http://www.huderlem.com/demos/gameboy2bpp.html
 void debug_draw_tilemap (const struct lcd* const lcd,
-    SDL_Renderer* const renderer) {
+    struct window_list* const window_list_head) {
 
+  SDL_Renderer* renderer = create_tileset_window(window_list_head);
   uint8_t* const tile_data = calloc(8 * 8 * 256, sizeof(uint8_t));
   shade_tiles(tile_data, lcd);
   paint_tiles(tile_data, renderer);
