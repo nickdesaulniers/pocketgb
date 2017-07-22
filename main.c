@@ -54,10 +54,6 @@ int main (int argc, char** argv) {
 
   SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
   SDL_RenderClear(renderer);
-  /*SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);*/
-  /*for (int x = 0; x < 640; ++x) {*/
-    /*SDL_RenderDrawPoint(renderer, x, x < 480 ? x : 479);*/
-  /*}*/
   SDL_RenderPresent(renderer);
   /*SDL_Delay(5000);*/
   SDL_Event e;
@@ -78,7 +74,6 @@ int main (int argc, char** argv) {
     if (breakpoint(&lr35902, 0x0055)) {
       puts("printing tilemap");
       debug_draw_tilemap(&lcd, renderer);
-      /*getchar();*/
     }
   }
 

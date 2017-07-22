@@ -19,6 +19,9 @@ void update_lcd (struct lcd* const lcd, const uint8_t cycles) {
   /*if (!lcd->enabled) {*/
     /*return;*/
   /*}*/
+  /*const uint8_t lcdc = rb(lcd->mmu, 0xFF40);*/
+  /*// make sure the lcd is on*/
+  /*assert(lcdc & (1 << 7));*/
 
   lcd->total_cycles += cycles;
   lcd->cycles_in_current_mode += cycles;
@@ -61,6 +64,30 @@ void update_lcd (struct lcd* const lcd, const uint8_t cycles) {
   }
 }
 
+// AKA BG & Window Tile Data Select
+static int bg_active_tileset (const struct lcd* const lcd) {
+  const uint8_t lcdc = rb(lcd->mmu, 0xFF00);
+  return !!(lcdc & (1 << 4));
+}
+
+static int bg_active_tilemap (const struct lcd* const lcd) {
+  const uint8_t lcdc = rb(lcd->mmu, 0xFF00);
+  return !!(lcdc & (1 << 3));
+}
+
+static void print_bg_tilemap (const struct lcd* const lcd) {
+  const int active_tilemap = bg_active_tilemap(lcd);
+  const uint16_t base = active_tilemap ? 0x9C00 : 0x9800;
+  const uint16_t top = active_tilemap ? 0x9FFF : 0x9BFF;
+  for (uint16_t addr = base; addr < top; addr += 32) {
+    for (int x = 0; x < 32; ++x) {
+      int8_t tile_index = rb(lcd->mmu, addr + x);
+      printf("%d |", tile_index);
+    }
+    puts("");
+  }
+}
+
 static uint8_t get_palette_number (const int bit_pos, const uint8_t low,
     const uint8_t high) {
   // Wont work for bit_pos 0, since we'd be right shifting by a negative number
@@ -70,73 +97,70 @@ static uint8_t get_palette_number (const int bit_pos, const uint8_t low,
     ((low & (1 << bit_pos)) >> bit_pos);
 }
 
-// takes a row of 8 pixels
-static void shade_tile_row (uint8_t* const pixels, const uint8_t low,
-    const uint8_t high) {
-  // I drew this out to understand it
-  /*pixels[0] = ((high & (1 << 7)) >> 6) | ((low & (1 << 7)) >> 7);*/
-  /*pixels[1] = ((high & (1 << 6)) >> 5) | ((low & (1 << 6)) >> 6);*/
-  /*// ...*/
-  /*pixels[6] = ((high & (1 << 1)) >> 0) | ((low & (1 << 1)) >> 1);*/
-  /*pixels[7] = ((high & (1 << 0)) << 1) | ((low & (1 << 0)) >> 0);*/
-  for (int i = 0; i < 7; ++i) {
-    pixels[i] = get_palette_number(7 - i, low, high);
-    printf("%d", pixels[i]);
-  }
-  pixels[7] = ((high & (1 << 0)) << 1) & ((low & (1 << 0)) >> 0);
-  printf("%d\n", pixels[7]);
-}
+static void shade_tiles (uint8_t* tile_data, const struct lcd* const lcd) {
+  const int active_tileset = bg_active_tileset(lcd);
+  const uint16_t base = active_tileset ? 0x8000 : 0x8800;
+  const uint16_t top = active_tileset ? 0x8FFF : 0x97FF;
 
-static void shade_tile (const struct mmu* const mem, uint8_t* const pixels,
-    const uint16_t base) {
-  uint8_t* p = &pixels[0];
-
-  for (uint16_t addr = base; addr < (base + 16); addr += 2) {
-    const uint8_t low = rb(mem, addr);
-    const uint8_t high = rb(mem, addr + 1);
-
-    // TODO: palette translation
-    shade_tile_row(p, low, high);
-    p += 8;
-  }
-  printf("== end tile 0x%X==\n", base);
-}
-
-void paint_pixels (const uint8_t* const pixels, SDL_Renderer* const renderer,
-    const int offset_x, const int offset_y) {
-  for (int x = 0; x < 8; ++x) {
-    for (int y = 0; y < 8; ++y) {
-      if (pixels[y * 8 + x]) {
-        // TODO: palette translation
-        SDL_RenderDrawPoint(renderer, x + offset_x, y + offset_y);
+  for (uint16_t addr = base; addr < top; addr += 16) {
+    const uint16_t ttop = addr + 16;
+    // one tile
+    for (uint16_t taddr = addr; taddr < ttop; taddr += 2) {
+      // one row
+      const uint8_t low = rb(lcd->mmu, taddr);
+      const uint8_t high = rb(lcd->mmu, taddr + 1);
+      for (int i = 0; i < 7; ++i) {
+        *tile_data = get_palette_number(7 - i, low, high);
+        printf("%d", *tile_data);
+        ++tile_data;
       }
+      *tile_data = ((high & (1 << 0)) << 1) | ((low & (1 << 0)) >> 0);
+      printf("%d\n", *tile_data);
+      ++tile_data;
+    }
+    puts("");
+    // TODO: only print 25 tiles for now
+    /*if (addr == base + 16 * 25) {*/
+      /*break;*/
+    /*}*/
+  }
+}
+
+static void paint_tiles (const uint8_t* tile_data,
+    SDL_Renderer* const renderer) {
+
+  SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+
+  for (int tile = 0; tile < 256; ++tile) {
+    int dx = (tile % 16) * 8;
+    int dy = (tile / 16) * 8;
+    // draw one tile
+    for (int sy = 0; sy < 8; ++sy) {
+      int tdx = dx;
+      // draw only first row
+      for (int sx = 0; sx < 8; ++sx) {
+        if (tile_data[sx]) {
+          SDL_RenderDrawPoint(renderer, tdx, dy);
+        }
+        ++tdx;
+      }
+      tile_data += 8;
+      ++dy;
     }
   }
 }
+
 
 // http://www.huderlem.com/demos/gameboy2bpp.html
 void debug_draw_tilemap (const struct lcd* const lcd,
     SDL_Renderer* const renderer) {
-  // Tiles are 8px x 8px == 64
-  uint8_t pixels [64];
-  const struct mmu* const mem = lcd->mmu;
-  int x = 0;
-  int y = 0;
 
-  SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-
-  for (uint16_t addr = 0x8000; addr < 0x8FFF; addr += 2) {
-  /*for (uint16_t addr = 0x8800; addr < 0x97FF; addr += 2) {*/
-    shade_tile(mem, pixels, addr);
-    // pixels is now shaded
-    // 16 x 16 == 256 total tiles
-    paint_pixels(pixels, renderer, x, y);
-    x += 8;
-    if (x == 128) {
-      y += 8;
-      x = 0;
-    }
-  }
+  uint8_t* const tile_data = calloc(8 * 8 * 256, sizeof(uint8_t));
+  shade_tiles(tile_data, lcd);
+  paint_tiles(tile_data, renderer);
   SDL_RenderPresent(renderer);
+
+  print_bg_tilemap(lcd);
+  free(tile_data);
   getchar();
 }
