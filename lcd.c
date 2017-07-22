@@ -77,14 +77,17 @@ static int bg_active_tilemap (const struct lcd* const lcd) {
   return !!(lcdc & (1 << 3));
 }
 
-static void print_bg_tilemap (const struct lcd* const lcd) {
+static void print_bg_tilemap (uint8_t* map_data,
+    const struct lcd* const lcd) {
+
   const int active_tilemap = bg_active_tilemap(lcd);
   const uint16_t base = active_tilemap ? 0x9C00 : 0x9800;
   const uint16_t top = active_tilemap ? 0x9FFF : 0x9BFF;
   for (uint16_t addr = base; addr < top; addr += 32) {
     for (int x = 0; x < 32; ++x) {
-      int8_t tile_index = rb(lcd->mmu, addr + x);
-      printf("%d |", tile_index);
+      *map_data = rb(lcd->mmu, addr + x);
+      printf("%d |", *map_data);
+      ++map_data;
     }
     puts("");
   }
@@ -124,39 +127,72 @@ static void shade_tiles (uint8_t* tile_data, const struct lcd* const lcd) {
   }
 }
 
-static void paint_tiles (const uint8_t* tile_data,
+// renderer agnostic
+static void paint_tile (const uint8_t* tile_data, SDL_Renderer* const renderer,
+    int dx, int dy) {
+
+  // draw one tile
+  for (int sy = 0; sy < 8; ++sy) {
+    int tdx = dx;
+    // draw only first row
+    for (int sx = 0; sx < 8; ++sx) {
+      if (tile_data[sx]) {
+        SDL_RenderDrawPoint(renderer, tdx, dy);
+      }
+      ++tdx;
+    }
+    tile_data += 8;
+    ++dy;
+  }
+}
+
+static const uint8_t* seek_tile (const uint8_t* tile_data, unsigned int i) {
+  // 256 tiles in total
+  assert(i < 256);
+  // 8px x 8px per tile
+  return tile_data + i * 64;
+}
+
+static void paint_tiles (const uint8_t* const tile_data,
     SDL_Renderer* const renderer) {
 
   SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
 
+  // 256 tiles in total
   for (int tile = 0; tile < 256; ++tile) {
+    // 16 rows, 16 columns, 8px per tile
     int dx = (tile % 16) * 8;
     int dy = (tile / 16) * 8;
-    // draw one tile
-    for (int sy = 0; sy < 8; ++sy) {
-      int tdx = dx;
-      // draw only first row
-      for (int sx = 0; sx < 8; ++sx) {
-        if (tile_data[sx]) {
-          SDL_RenderDrawPoint(renderer, tdx, dy);
-        }
-        ++tdx;
-      }
-      tile_data += 8;
-      ++dy;
-    }
+    paint_tile(seek_tile(tile_data, tile), renderer, dx, dy);
   }
+
+  SDL_RenderPresent(renderer);
+}
+
+static void map_tiles (const uint8_t* const map_data,
+    const uint8_t* const tile_data, SDL_Renderer* const renderer) {
+
+  SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+  for (int map = 0; map < 32 * 32; ++map) {
+    int dx = (map % 32) * 8;
+    int dy = (map / 32) * 8;
+    paint_tile(seek_tile(tile_data, map_data[map]), renderer, dx, dy);
+    /*if (map == 261) {*/
+    /*if (map_data[map]) {*/
+      /*printf("XXX: %d\n", map);*/
+      /*break;*/
+    /*};*/
+  }
+  SDL_RenderPresent(renderer);
 }
 
 static void perror_sdl (const char* const msg) {
   fprintf(stderr, "%s: %s\n", msg, SDL_GetError());
 }
 
-static SDL_Renderer* create_tileset_window (
-    struct window_list* const window_list_head) {
+static SDL_Renderer* get_cleared_renderer (
+    struct window_list* const window_list_head, SDL_Window* const window) {
 
-  SDL_Window* window = SDL_CreateWindow("Debug Tileset",
-      SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 16 * 8, 16 * 8, 0);
   if (!window) {
     perror_sdl("unable to open window");
     return NULL;
@@ -174,18 +210,36 @@ static SDL_Renderer* create_tileset_window (
   return renderer;
 }
 
+static SDL_Renderer* create_tileset_window (
+    struct window_list* const window_list_head) {
+
+  SDL_Window* window = SDL_CreateWindow("Debug Tileset",
+      SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 16 * 8, 16 * 8, 0);
+  return get_cleared_renderer(window_list_head, window);
+}
+
+static SDL_Renderer* create_tilemap_window (
+    struct window_list* const window_list_head) {
+
+  SDL_Window* window = SDL_CreateWindow("Debug Tilemapped Tiles",
+      SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 32 * 8, 32 * 8, 0);
+  return get_cleared_renderer(window_list_head, window);
+}
 
 // http://www.huderlem.com/demos/gameboy2bpp.html
 void debug_draw_tilemap (const struct lcd* const lcd,
     struct window_list* const window_list_head) {
 
-  SDL_Renderer* renderer = create_tileset_window(window_list_head);
+  SDL_Renderer* tileset_renderer = create_tileset_window(window_list_head);
   uint8_t* const tile_data = calloc(8 * 8 * 256, sizeof(uint8_t));
   shade_tiles(tile_data, lcd);
-  paint_tiles(tile_data, renderer);
-  SDL_RenderPresent(renderer);
+  paint_tiles(tile_data, tileset_renderer);
 
-  print_bg_tilemap(lcd);
+  uint8_t* const map_data = calloc(32 * 32, sizeof(uint8_t));
+  print_bg_tilemap(map_data, lcd);
+  SDL_Renderer* tilemap_renderer = create_tilemap_window(window_list_head);
+  map_tiles(map_data, tile_data, tilemap_renderer);
+
   free(tile_data);
   getchar();
 }
