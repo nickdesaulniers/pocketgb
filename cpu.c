@@ -94,6 +94,7 @@ static void handle_cb (struct cpu* const cpu) {
   ++cpu->registers.pc;
 }
 
+// normal instructions (non-cb)
 #define INC_REGISTER(reg) do { \
   ++lr35902->registers.reg; \
   ++lr35902->registers.pc; \
@@ -182,7 +183,11 @@ static void DEC_E (struct cpu* const lr35902) {
   pbyte(lr35902->registers.e);
 }
 
-// normal instructions (non-cb)
+static void NOP (struct cpu* const lr35902) {
+  puts("NOP");
+  ++lr35902->registers.pc;
+}
+
 static void LD_SP_d16 (struct cpu* const lr35902) {
   puts("LD SP,d16");
   pshort(lr35902->registers.sp);
@@ -480,6 +485,14 @@ static void JR_Z_r8 (struct cpu* const lr35902) {
   pshort(lr35902->registers.pc);
 }
 
+static void JP_a16 (struct cpu* const lr35902) {
+  puts("JP_a16");
+  const uint16_t a16 = load_d16(lr35902);
+  printf("jumping to ");
+  pshort(a16);
+  lr35902->registers.pc = a16;
+}
+
 static void CALL_a16 (struct cpu* const lr35902) {
   puts("CALL a16");
   // push address of next instruction onto stack
@@ -488,7 +501,7 @@ static void CALL_a16 (struct cpu* const lr35902) {
   store_d16(lr35902, lr35902->registers.sp, lr35902->registers.pc + 3);
 
   // jump to address
-  const uint8_t a16 = load_d16(lr35902);
+  const uint16_t a16 = load_d16(lr35902);
   lr35902->registers.pc = a16;
 }
 
@@ -542,8 +555,14 @@ static void CP_DEREF_HL (struct cpu* const lr35902) {
   ++lr35902->registers.pc;
 }
 
+static void DI (struct cpu* const lr35902) {
+  puts("DI");
+  lr35902->interrupts_enabled = 0;
+  ++lr35902->registers.pc;
+}
+
 static const instr opcodes [256] = {
-  0, 0, 0, 0, INC_B, DEC_B, LD_B_d8, 0, 0, 0, 0, 0, INC_C, DEC_C, LD_C_d8, 0, // 0x
+  NOP, 0, 0, 0, INC_B, DEC_B, LD_B_d8, 0, 0, 0, 0, 0, INC_C, DEC_C, LD_C_d8, 0, // 0x
   0, LD_DE_d16, 0, INC_DE, 0, DEC_D, LD_D_d8, RLA, JR_r8, 0, LD_A_DEREF_DE, 0, 0, DEC_E, LD_E_d8, 0, // 1x
   JR_NZ_r8, LD_HL_d16, LD_DEREF_HL_INC_A, INC_HL, INC_H, 0, 0, 0, JR_Z_r8, 0, 0, 0, 0, 0, LD_L_d8, 0, // 2x
   0, LD_SP_d16, LD_DEREF_HL_DEC_A, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, DEC_A, LD_A_d8, 0, // 3x
@@ -555,10 +574,10 @@ static const instr opcodes [256] = {
   SUB_B, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 9x
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, XOR_A, // Ax
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, CP_DEREF_HL, 0, // Bx
-  0, POP_BC, 0, 0, 0, PUSH_BC, 0, 0, 0, RET, 0, handle_cb, 0, CALL_a16, 0, 0, // Cx
+  0, POP_BC, 0, JP_a16, 0, PUSH_BC, 0, 0, 0, RET, 0, handle_cb, 0, CALL_a16, 0, 0, // Cx
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // Dx
   LDH_DEREF_a8_A, 0, LD_DEREF_C_A, 0, 0, 0, 0, 0, 0, 0, LD_DEREF_a16_A, 0, 0, 0, 0, 0, // Ex
-  LDH_A_DEREF_a8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, CP_d8, 0  // Fx
+  LDH_A_DEREF_a8, 0, 0, DI, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, CP_d8, 0  // Fx
 };
 
 instr decode (const struct cpu* const cpu) {
@@ -589,4 +608,5 @@ void cpu_power_up (struct cpu* const cpu) {
   /*pshort(cpu->registers.pc);*/
   // TODO: likely set this if booted w/o bios
   /*cpu->registers.pc = 0x0100;*/
+  cpu->interrupts_enabled = 1;
 }

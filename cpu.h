@@ -44,6 +44,7 @@ struct cpu {
     uint16_t pc;
   } registers;
   struct mmu* mmu;
+  uint8_t interrupts_enabled;
 };
 
 typedef void (*instr) (struct cpu* const);
