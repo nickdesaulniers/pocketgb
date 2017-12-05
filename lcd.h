@@ -7,6 +7,7 @@ struct lcd {
   struct mmu* mmu;
   uint32_t total_cycles; // for debugging?
   uint16_t cycles_in_current_mode;
+  uint16_t cycles_in_current_line;
   uint8_t mode;
   uint8_t line;
   bool enabled;

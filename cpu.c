@@ -582,6 +582,8 @@ static const instr opcodes [256] = {
 
 instr decode (const struct cpu* const cpu) {
   uint16_t pc = cpu->registers.pc;
+  /*printf("PC@");*/
+  /*pshort(pc);*/
   uint8_t opcode = rb(cpu->mmu, pc);
   pbyte(opcode);
   instr i = opcodes[opcode];

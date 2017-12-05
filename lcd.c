@@ -3,16 +3,10 @@
 #include "SDL_render.h"
 #include "lcd.h"
 
-void transition (struct lcd* const lcd, const uint8_t mode) {
+static void transition (struct lcd* const lcd, const uint8_t mode) {
   printf("LCD: transition from %d to %d\n", lcd->mode, mode);
   lcd->mode = mode;
   lcd->cycles_in_current_mode = 0;
-}
-
-void update_line (struct lcd* const lcd, uint8_t line) {
-  lcd->line = line;
-  printf("LCD: advancing to line %d\n", line);
-  wb(lcd->mmu, 0xFF44, line);
 }
 
 static int is_lcd_on (const struct lcd* const lcd) {
@@ -20,6 +14,22 @@ static int is_lcd_on (const struct lcd* const lcd) {
   return !!(lcdc & (1 << 7));
 }
 
+static void update_line (struct lcd* const lcd, const uint8_t cycles) {
+  lcd->cycles_in_current_line += cycles;
+
+  if (lcd->cycles_in_current_line >= 456) {
+    lcd->cycles_in_current_line = 0;
+    // TODO: modulo?
+    ++lcd->line;
+    if (lcd->line == 154) {
+      lcd->line = 0;
+    }
+    printf("LCD: advancing to line %d\n", lcd->line);
+    wb(lcd->mmu, 0xFF44, lcd->line);
+  }
+}
+
+// http://gameboy.mongenel.com/dmg/gbc_lcdc_timing.txt`
 void update_lcd (struct lcd* const lcd, const uint8_t cycles) {
   if (!is_lcd_on(lcd)) {
     return;
@@ -27,12 +37,12 @@ void update_lcd (struct lcd* const lcd, const uint8_t cycles) {
 
   lcd->total_cycles += cycles;
   lcd->cycles_in_current_mode += cycles;
+  update_line(lcd, cycles);
 
   switch (lcd->mode) {
     // HBlank
     case 0:
       if (lcd->cycles_in_current_mode >= 204) {
-        update_line(lcd, lcd->line + 1);
 
         if (lcd->line == 144) {
           transition(lcd, 1);
@@ -45,8 +55,6 @@ void update_lcd (struct lcd* const lcd, const uint8_t cycles) {
     case 1:
       if (lcd->cycles_in_current_mode >= 4560) {
         transition(lcd, 2);
-        update_line(lcd, 0);
-        lcd->line = 0;
       }
       break;
     case 2:
