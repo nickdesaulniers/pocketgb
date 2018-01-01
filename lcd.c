@@ -85,7 +85,7 @@ static int bg_active_tilemap (const struct lcd* const lcd) {
   return !!(lcdc & (1 << 3));
 }
 
-static void print_bg_tilemap (uint8_t* map_data,
+static void paint_bg_tilemap (uint8_t* map_data,
     const struct lcd* const lcd) {
 
   const int active_tilemap = bg_active_tilemap(lcd);
@@ -94,10 +94,10 @@ static void print_bg_tilemap (uint8_t* map_data,
   for (uint16_t addr = base; addr < top; addr += 32) {
     for (int x = 0; x < 32; ++x) {
       *map_data = rb(lcd->mmu, addr + x);
-      printf("%d |", *map_data);
+      /*printf("%d |", *map_data);*/
       ++map_data;
     }
-    puts("");
+    /*puts("");*/
   }
 }
 
@@ -124,14 +124,14 @@ static void shade_tiles (uint8_t* tile_data, const struct lcd* const lcd) {
       const uint8_t high = rb(lcd->mmu, taddr + 1);
       for (int i = 0; i < 7; ++i) {
         *tile_data = get_palette_number(7 - i, low, high);
-        printf("%d", *tile_data);
+        /*printf("%d", *tile_data);*/
         ++tile_data;
       }
       *tile_data = ((high & (1 << 0)) << 1) | ((low & (1 << 0)) >> 0);
-      printf("%d\n", *tile_data);
+      /*printf("%d\n", *tile_data);*/
       ++tile_data;
     }
-    puts("");
+    /*puts("");*/
   }
 }
 
@@ -198,9 +198,7 @@ static void perror_sdl (const char* const msg) {
   fprintf(stderr, "%s: %s\n", msg, SDL_GetError());
 }
 
-static SDL_Renderer* get_cleared_renderer (
-    struct window_list* const window_list_head, SDL_Window* const window) {
-
+static SDL_Renderer* get_cleared_renderer (SDL_Window* const window) {
   if (!window) {
     perror_sdl("unable to open window");
     return NULL;
@@ -214,40 +212,38 @@ static SDL_Renderer* get_cleared_renderer (
   SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
   SDL_RenderClear(renderer);
   SDL_RenderPresent(renderer);
-  window_list_insert(window_list_head, window);
   return renderer;
 }
 
-static SDL_Renderer* create_tileset_window (
-    struct window_list* const window_list_head) {
-
-  SDL_Window* window = SDL_CreateWindow("Debug Tileset",
-      SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 16 * 8, 16 * 8, 0);
-  return get_cleared_renderer(window_list_head, window);
-}
-
-static SDL_Renderer* create_tilemap_window (
-    struct window_list* const window_list_head) {
-
-  SDL_Window* window = SDL_CreateWindow("Debug Tilemapped Tiles",
-      SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 32 * 8, 32 * 8, 0);
-  return get_cleared_renderer(window_list_head, window);
+void create_debug_windows (struct window_list** window_list_head) {
+  SDL_Window* debug_windows [] = {
+    SDL_CreateWindow("Debug Tileset",
+        SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 16 * 8, 16 * 8, 0),
+    SDL_CreateWindow("Debug Tilemapped Tiles",
+        SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 32 * 8, 32 * 8, 0)
+  };
+  for (int i = 0; i < sizeof(debug_windows) / sizeof(SDL_Window*); ++i) {
+    SDL_Renderer* renderer = get_cleared_renderer(debug_windows[i]);
+    assert(renderer != NULL);
+    window_list_insert(window_list_head, debug_windows[i], renderer);
+  }
 }
 
 // http://www.huderlem.com/demos/gameboy2bpp.html
-void debug_draw_tilemap (const struct lcd* const lcd,
-    struct window_list* const window_list_head) {
+void update_debug_windows (const struct window_list* const window_list_head,
+    const struct lcd* const lcd) {
+  assert(window_list_head->next != NULL);
+  assert(window_list_head->next->renderer != NULL);
+  assert(window_list_head->renderer != window_list_head->next->renderer);
 
-  SDL_Renderer* tileset_renderer = create_tileset_window(window_list_head);
   uint8_t* const tile_data = calloc(8 * 8 * 256, sizeof(uint8_t));
   shade_tiles(tile_data, lcd);
-  paint_tiles(tile_data, tileset_renderer);
+  paint_tiles(tile_data, window_list_head->renderer);
 
   uint8_t* const map_data = calloc(32 * 32, sizeof(uint8_t));
-  print_bg_tilemap(map_data, lcd);
-  SDL_Renderer* tilemap_renderer = create_tilemap_window(window_list_head);
-  map_tiles(map_data, tile_data, tilemap_renderer);
+  paint_bg_tilemap(map_data, lcd);
+  map_tiles(map_data, tile_data, window_list_head->next->renderer);
 
   free(tile_data);
-  getchar();
+  free(map_data);
 }

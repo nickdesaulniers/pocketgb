@@ -1,11 +1,6 @@
 #include <assert.h>
 #include "window_list.h"
 
-void window_list_init (struct window_list* const wl) {
-  wl->window = NULL;
-  wl->next = NULL;
-}
-
 void window_list_deinit (struct window_list* wl) {
   assert(wl && wl->window);
   SDL_DestroyWindow(wl->window);
@@ -18,24 +13,29 @@ void window_list_deinit (struct window_list* wl) {
   }
 }
 
-void window_list_insert (struct window_list* wl, SDL_Window* window) {
-  assert(window != NULL);
+void window_list_insert (struct window_list** wl, SDL_Window* window,
+    SDL_Renderer* renderer) {
 
-  // initial insert
-  if (!wl->window) {
-    wl->window = window;
-    return;
-  }
+  assert(wl != NULL);
+  assert(window != NULL);
+  assert(renderer != NULL);
 
   // allocate new node
   struct window_list* new_wl = malloc(sizeof(struct window_list));
   new_wl->window = window;
+  new_wl->renderer = renderer;
   new_wl->next = NULL;
+
+  if (*wl == NULL) {
+    *wl = new_wl;
+    return;
+  }
 
   // find the tail
   // tail->next == NULL
-  while (wl->next) {
-    wl = wl->next;
+  struct window_list* temp = *wl;
+  while (temp->next) {
+    temp = temp->next;
   }
-  wl->next = new_wl;
+  temp->next = new_wl;
 }

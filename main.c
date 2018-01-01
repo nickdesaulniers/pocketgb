@@ -35,8 +35,8 @@ int main (int argc, char** argv) {
   lcd.mode = 2;
 
   assert(SDL_Init(SDL_INIT_VIDEO) == 0);
-  struct window_list window_list_head;
-  window_list_init(&window_list_head);
+  struct window_list* window_list_head = NULL;
+  create_debug_windows(&window_list_head);
   SDL_Event e;
 
   // TODO: while cpu not halted
@@ -53,12 +53,13 @@ int main (int argc, char** argv) {
     update_lcd(&lcd, 4);
 
     if (breakpoint(&lr35902, 0x0055)) {
+    /*if (breakpoint(&lr35902, 0x27f7)) {*/
       puts("printing tilemap");
-      debug_draw_tilemap(&lcd, &window_list_head);
+      update_debug_windows(window_list_head, &lcd);
     }
   }
 
-  window_list_deinit(&window_list_head);
+  window_list_deinit(window_list_head);
   SDL_Quit();
   deinit_memory(memory);
 }
