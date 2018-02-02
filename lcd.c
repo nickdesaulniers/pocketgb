@@ -77,11 +77,13 @@ void update_lcd (struct lcd* const lcd, const uint8_t cycles) {
 // AKA BG & Window Tile Data Select
 static int bg_active_tileset (const struct lcd* const lcd) {
   const uint8_t lcdc = rb(lcd->mmu, 0xFF00);
+  printf("active tileset: %d\n", !!(lcdc & (1 << 4)));
   return !!(lcdc & (1 << 4));
 }
 
 static int bg_active_tilemap (const struct lcd* const lcd) {
   const uint8_t lcdc = rb(lcd->mmu, 0xFF00);
+  printf("active tilemap: %d\n", !!(lcdc & (1 << 3)));
   return !!(lcdc & (1 << 3));
 }
 

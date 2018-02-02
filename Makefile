@@ -5,8 +5,12 @@ SOURCES = \
 	window_list.c \
 	main.c
 
+FLAGS = \
+	`pkg-config --cflags sdl2 --libs sdl2` \
+	-fsanitize=address
+
 default:
-	cc $(SOURCES) `pkg-config --cflags sdl2 --libs sdl2` -o pocketgb
+	cc $(SOURCES) $(FLAGS) -o pocketgb
 
 clean:
 	rm -f pocketgb *.o
