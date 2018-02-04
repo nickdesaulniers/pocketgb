@@ -66,99 +66,99 @@ static void destroy_rom (struct rom* const rom) {
 // pack these to save space in the opcode table
 enum __attribute__((packed)) Opcode {
   kInvalid, // used for errors decoding
-  kNop,
-  kStop,
-  kHalt,
+  kNOP,
+  kSTOP,
+  kHALT,
   // load store
-  kLoad,
-  kPush,
-  kPop,
+  kLD,
+  kPUSH,
+  kPOP,
   // inc/dec
-  kInc,
-  kDec,
+  kINC,
+  kDEC,
   // rotates
   kRL,
   kRR,
   // math
-  kAdd,
-  kAddc,
-  kSub,
-  kSubc,
+  kADD,
+  kADC,
+  kSUB,
+  kSBC,
+  kCP,
+  // conversion
   kDAA,
   // logical
-  kAnd,
-  kXor,
-  kOr,
-  // comparison
+  kAND,
+  kXOR,
+  kOR,
   kCPL,
-  kCp,
   // flags
   kSCF,
   kCCF,
   // jumps
-  kJump,
-  kCall,
-  kRet,
+  kJP,
+  kCALL,
+  kRET,
   kRST,
   // prefix
-  kCb,
+  kCB,
   // Interrupts
   kEI,
   kDI,
 };
 
-static enum Opcode decode_table [256] = {
+static const enum Opcode decode_table [256] = {
   // 0x
-  kNop, kLoad, kLoad, kInc, kInc, kDec, kLoad, kRL,
-  kLoad, kAdd, kLoad, kDec, kInc, kDec, kLoad, kRR,
+  kNOP, kLD, kLD, kINC, kINC, kDEC, kLD, kRL,
+  kLD, kADD, kLD, kDEC, kINC, kDEC, kLD, kRR,
   // 1x
-  kStop, kLoad, kLoad, kInc, kInc, kDec, kLoad, kRL,
-  kJump, kAdd, kLoad, kDec, kInc, kDec, kLoad, kRR,
+  kSTOP, kLD, kLD, kINC, kINC, kDEC, kLD, kRL,
+  kJP, kADD, kLD, kDEC, kINC, kDEC, kLD, kRR,
   // 2x
-  kJump, kLoad, kLoad, kInc, kInc, kDec, kLoad, kDAA,
-  kJump, kAdd, kLoad, kDec, kInc, kDec, kLoad, kCPL,
+  kJP, kLD, kLD, kINC, kINC, kDEC, kLD, kDAA,
+  kJP, kADD, kLD, kDEC, kINC, kDEC, kLD, kCPL,
   // 3x
-  kJump, kLoad, kLoad, kInc, kInc, kDec, kLoad, kSCF,
-  kJump, kAdd, kLoad, kDec, kInc, kDec, kLoad, kCCF,
+  kJP, kLD, kLD, kINC, kINC, kDEC, kLD, kSCF,
+  kJP, kADD, kLD, kDEC, kINC, kDEC, kLD, kCCF,
   // 4x
-  kLoad, kLoad, kLoad, kLoad, kLoad, kLoad, kLoad, kLoad,
-  kLoad, kLoad, kLoad, kLoad, kLoad, kLoad, kLoad, kLoad,
+  kLD, kLD, kLD, kLD, kLD, kLD, kLD, kLD,
+  kLD, kLD, kLD, kLD, kLD, kLD, kLD, kLD,
   // 5x
-  kLoad, kLoad, kLoad, kLoad, kLoad, kLoad, kLoad, kLoad,
-  kLoad, kLoad, kLoad, kLoad, kLoad, kLoad, kLoad, kLoad,
+  kLD, kLD, kLD, kLD, kLD, kLD, kLD, kLD,
+  kLD, kLD, kLD, kLD, kLD, kLD, kLD, kLD,
   // 6x
-  kLoad, kLoad, kLoad, kLoad, kLoad, kLoad, kLoad, kLoad,
-  kLoad, kLoad, kLoad, kLoad, kLoad, kLoad, kLoad, kLoad,
+  kLD, kLD, kLD, kLD, kLD, kLD, kLD, kLD,
+  kLD, kLD, kLD, kLD, kLD, kLD, kLD, kLD,
   // 7x
-  kLoad, kLoad, kLoad, kLoad, kLoad, kLoad, kHalt, kLoad,
-  kLoad, kLoad, kLoad, kLoad, kLoad, kLoad, kLoad, kLoad,
+  kLD, kLD, kLD, kLD, kLD, kLD, kHALT, kLD,
+  kLD, kLD, kLD, kLD, kLD, kLD, kLD, kLD,
   // 8x
-  kAdd, kAdd, kAdd, kAdd, kAdd, kAdd, kAdd, kAdd,
-  kAddc, kAddc, kAddc, kAddc, kAddc, kAddc, kAddc, kAddc,
+  kADD, kADD, kADD, kADD, kADD, kADD, kADD, kADD,
+  kADC, kADC, kADC, kADC, kADC, kADC, kADC, kADC,
   // 9x
-  kSub, kSub, kSub, kSub, kSub, kSub, kSub, kSub,
-  kSubc, kSubc, kSubc, kSubc, kSubc, kSubc, kSubc, kSubc,
+  kSUB, kSUB, kSUB, kSUB, kSUB, kSUB, kSUB, kSUB,
+  kSBC, kSBC, kSBC, kSBC, kSBC, kSBC, kSBC, kSBC,
   // Ax
-  kAnd, kAnd, kAnd, kAnd, kAnd, kAnd, kAnd, kAnd,
-  kXor, kXor, kXor, kXor, kXor, kXor, kXor, kXor,
+  kAND, kAND, kAND, kAND, kAND, kAND, kAND, kAND,
+  kXOR, kXOR, kXOR, kXOR, kXOR, kXOR, kXOR, kXOR,
   // Bx
-  kOr, kOr, kOr, kOr, kOr, kOr, kOr, kOr,
-  kCp, kCp, kCp, kCp, kCp, kCp, kCp, kCp,
+  kOR, kOR, kOR, kOR, kOR, kOR, kOR, kOR,
+  kCP, kCP, kCP, kCP, kCP, kCP, kCP, kCP,
   // Cx
-  kRet, kPop, kJump, kJump, kCall, kPush, kAdd, kRST,
-  kRet, kRet, kJump, kCb, kCall, kCall, kAddc, kRST,
+  kRET, kPOP, kJP, kJP, kCALL, kPUSH, kADD, kRST,
+  kRET, kRET, kJP, kCB, kCALL, kCALL, kADC, kRST,
   // Dx
-  kRet, kPop, kJump, kInvalid, kCall, kPush, kSub, kRST,
-  kRet, kRet, kJump, kInvalid, kCall, kInvalid, kSubc, kRST,
+  kRET, kPOP, kJP, kInvalid, kCALL, kPUSH, kSUB, kRST,
+  kRET, kRET, kJP, kInvalid, kCALL, kInvalid, kSBC, kRST,
   // Ex
-  kLoad, kPop, kLoad, kInvalid, kInvalid, kPush, kAnd, kRST,
-  kAdd, kJump, kLoad, kInvalid, kInvalid, kInvalid, kXor, kRST,
+  kLD, kPOP, kLD, kInvalid, kInvalid, kPUSH, kAND, kRST,
+  kADD, kJP, kLD, kInvalid, kInvalid, kInvalid, kXOR, kRST,
   // Fx
-  kLoad, kPop, kLoad, kDI, kInvalid, kPush, kOr, kRST,
-  kLoad, kLoad, kLoad, kEI, kInvalid, kInvalid, kCp, kRST
+  kLD, kPOP, kLD, kDI, kInvalid, kPUSH, kOR, kRST,
+  kLD, kLD, kLD, kEI, kInvalid, kInvalid, kCP, kRST
 };
 
-/*enum kCbOpcode {};*/
+/*enum CbOpcode {};*/
 
 struct operand {};
 
@@ -166,7 +166,7 @@ struct instruction {
   char* name;
   uint8_t* rom_addr; // where in the rom we found this
   enum Opcode opcode;
-  /*enum kCbOpcode cb_opcode;*/
+  /*enum CbOpcode cb_opcode;*/
   struct operand operands [2];
   char instruction_length;
 };
