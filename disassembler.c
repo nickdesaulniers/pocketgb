@@ -64,7 +64,7 @@ static void destroy_rom (struct rom* const rom) {
 }
 
 // pack these to save space in the opcode table
-enum __attribute__((packed)) kOpcode {
+enum __attribute__((packed)) Opcode {
   kInvalid, // used for errors decoding
   kNop,
   kStop,
@@ -107,7 +107,7 @@ enum __attribute__((packed)) kOpcode {
   kDI,
 };
 
-static enum kOpcode decode_table [256] = {
+static enum Opcode decode_table [256] = {
   // 0x
   kNop, kLoad, kLoad, kInc, kInc, kDec, kLoad, kRL,
   kLoad, kAdd, kLoad, kDec, kInc, kDec, kLoad, kRR,
@@ -134,9 +134,9 @@ static enum kOpcode decode_table [256] = {
   kLoad, kLoad, kLoad, kLoad, kLoad, kLoad, kLoad, kLoad,
   // 8x
   kAdd, kAdd, kAdd, kAdd, kAdd, kAdd, kAdd, kAdd,
-  kAddc, kAddc, kAddc, kAddc, kAddc, kAddc, kAddc, kAddc, kAddc,
+  kAddc, kAddc, kAddc, kAddc, kAddc, kAddc, kAddc, kAddc,
   // 9x
-  kSub, kSub, kSub, kSub, kSub, kSub, kSub, kSub, kSub,
+  kSub, kSub, kSub, kSub, kSub, kSub, kSub, kSub,
   kSubc, kSubc, kSubc, kSubc, kSubc, kSubc, kSubc, kSubc,
   // Ax
   kAnd, kAnd, kAnd, kAnd, kAnd, kAnd, kAnd, kAnd,
@@ -155,7 +155,7 @@ static enum kOpcode decode_table [256] = {
   kAdd, kJump, kLoad, kInvalid, kInvalid, kInvalid, kXor, kRST,
   // Fx
   kLoad, kPop, kLoad, kDI, kInvalid, kPush, kOr, kRST,
-  kLoad, kLoad, kLoad, kEI, kInvalid, kInvalid, kCp, kRST,
+  kLoad, kLoad, kLoad, kEI, kInvalid, kInvalid, kCp, kRST
 };
 
 /*enum kCbOpcode {};*/
@@ -165,15 +165,15 @@ struct operand {};
 struct instruction {
   char* name;
   uint8_t* rom_addr; // where in the rom we found this
-  enum kOpcode opcode;
+  enum Opcode opcode;
   /*enum kCbOpcode cb_opcode;*/
   struct operand operands [2];
   char instruction_length;
 };
 
-static enum kOpcode decode_opcode (const uint8_t* const data, const size_t pc) {
+static enum Opcode decode_opcode (const uint8_t* const data, const size_t pc) {
   const uint8_t first_byte = data[pc];
-  const enum kOpcode opcode = decode_table[first_byte];
+  const enum Opcode opcode = decode_table[first_byte];
   return kInvalid;
 }
 
@@ -182,7 +182,7 @@ int disassemble (const struct rom* const rom) {
   while (pc < rom->size) {
     // index into rom
     printf("pc: %zu\n", pc);
-    decode_opcode(rom->data, pc);
+    const enum Opcode opcode = decode_opcode(rom->data, pc);
     /*const uint8_t first_byte = rom->data[pc];*/
     /*printf("read: ");*/
     /*pbyte(first_byte);*/
