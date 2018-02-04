@@ -63,17 +63,99 @@ static void destroy_rom (struct rom* const rom) {
   free(rom);
 }
 
-enum kOpcode {
+// pack these to save space in the opcode table
+enum __attribute__((packed)) kOpcode {
   kInvalid, // used for errors decoding
   kNop,
   kStop,
+  kHalt,
+  // load store
   kLoad,
+  kPush,
+  kPop,
+  // inc/dec
   kInc,
   kDec,
+  // rotates
   kRL,
   kRR,
+  // math
   kAdd,
+  kAddc,
+  kSub,
+  kSubc,
+  kDAA,
+  // logical
+  kAnd,
+  kXor,
+  kOr,
+  // comparison
+  kCPL,
+  kCp,
+  // flags
+  kSCF,
+  kCCF,
+  // jumps
   kJump,
+  kCall,
+  kRet,
+  kRST,
+  // prefix
+  kCb,
+  // Interrupts
+  kEI,
+  kDI,
+};
+
+static enum kOpcode decode_table [256] = {
+  // 0x
+  kNop, kLoad, kLoad, kInc, kInc, kDec, kLoad, kRL,
+  kLoad, kAdd, kLoad, kDec, kInc, kDec, kLoad, kRR,
+  // 1x
+  kStop, kLoad, kLoad, kInc, kInc, kDec, kLoad, kRL,
+  kJump, kAdd, kLoad, kDec, kInc, kDec, kLoad, kRR,
+  // 2x
+  kJump, kLoad, kLoad, kInc, kInc, kDec, kLoad, kDAA,
+  kJump, kAdd, kLoad, kDec, kInc, kDec, kLoad, kCPL,
+  // 3x
+  kJump, kLoad, kLoad, kInc, kInc, kDec, kLoad, kSCF,
+  kJump, kAdd, kLoad, kDec, kInc, kDec, kLoad, kCCF,
+  // 4x
+  kLoad, kLoad, kLoad, kLoad, kLoad, kLoad, kLoad, kLoad,
+  kLoad, kLoad, kLoad, kLoad, kLoad, kLoad, kLoad, kLoad,
+  // 5x
+  kLoad, kLoad, kLoad, kLoad, kLoad, kLoad, kLoad, kLoad,
+  kLoad, kLoad, kLoad, kLoad, kLoad, kLoad, kLoad, kLoad,
+  // 6x
+  kLoad, kLoad, kLoad, kLoad, kLoad, kLoad, kLoad, kLoad,
+  kLoad, kLoad, kLoad, kLoad, kLoad, kLoad, kLoad, kLoad,
+  // 7x
+  kLoad, kLoad, kLoad, kLoad, kLoad, kLoad, kHalt, kLoad,
+  kLoad, kLoad, kLoad, kLoad, kLoad, kLoad, kLoad, kLoad,
+  // 8x
+  kAdd, kAdd, kAdd, kAdd, kAdd, kAdd, kAdd, kAdd,
+  kAddc, kAddc, kAddc, kAddc, kAddc, kAddc, kAddc, kAddc, kAddc,
+  // 9x
+  kSub, kSub, kSub, kSub, kSub, kSub, kSub, kSub, kSub,
+  kSubc, kSubc, kSubc, kSubc, kSubc, kSubc, kSubc, kSubc,
+  // Ax
+  kAnd, kAnd, kAnd, kAnd, kAnd, kAnd, kAnd, kAnd,
+  kXor, kXor, kXor, kXor, kXor, kXor, kXor, kXor,
+  // Bx
+  kOr, kOr, kOr, kOr, kOr, kOr, kOr, kOr,
+  kCp, kCp, kCp, kCp, kCp, kCp, kCp, kCp,
+  // Cx
+  kRet, kPop, kJump, kJump, kCall, kPush, kAdd, kRST,
+  kRet, kRet, kJump, kCb, kCall, kCall, kAddc, kRST,
+  // Dx
+  kRet, kPop, kJump, kInvalid, kCall, kPush, kSub, kRST,
+  kRet, kRet, kJump, kInvalid, kCall, kInvalid, kSubc, kRST,
+  // Ex
+  kLoad, kPop, kLoad, kInvalid, kInvalid, kPush, kAnd, kRST,
+  kAdd, kJump, kLoad, kInvalid, kInvalid, kInvalid, kXor, kRST,
+  // Fx
+  kLoad, kPop, kLoad, kDI, kInvalid, kPush, kOr, kRST,
+  kLoad, kLoad, kLoad, kEI, kInvalid, kInvalid, kCp, kRST,
 };
 
 /*enum kCbOpcode {};*/
@@ -87,29 +169,6 @@ struct instruction {
   /*enum kCbOpcode cb_opcode;*/
   struct operand operands [2];
   char instruction_length;
-};
-
-static enum kOpcode decode_table [256] = {
-  // 0x
-  kNop, kLoad, kLoad, kInc, kInc, kDec, kLoad, kRL,
-  kLoad, kAdd, kLoad, kDec, kInc, kDec, kLoad, kRR,
-  // 1x
-  kStop, kLoad, kLoad, kInc, kInc, kDec, kLoad, kRL,
-  kJump, kAdd, kLoad, kDec, kInc, kDec, kLoad, kRR,
-  // 2x
-  // 3x
-  // 4x
-  // 5x
-  // 6x
-  // 7x
-  // 8x
-  // 9x
-  // Ax
-  // Bx
-  // Cx
-  // Dx
-  // Ex
-  // Fx
 };
 
 static enum kOpcode decode_opcode (const uint8_t* const data, const size_t pc) {
