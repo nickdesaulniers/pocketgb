@@ -233,10 +233,12 @@ enum Operand {
   // Literals
   kd8,
   kr8,
+  kSP_r8,
   kDEREF_a8,
   // Should not be assigned, just used to delimit operands that add to
   // instruction length.
   kINSTRUCTION_LENGTH_1,
+  kd16,
   kDEREF_a16,
 };
 
@@ -262,7 +264,9 @@ static const char* const operand_str_table [] = {
   "SP",
   "d8",
   "r8",
+  "SP+r8",
   "(a8)",
+  "d16",
   "(a16)"
 };
 
@@ -316,6 +320,57 @@ static const enum Operand operand_0_table [256] = {
   // Fx
   kA, kAF, kA, kNONE, kNONE, kAF, kd8, kNONE,
   kHL, kSP, kA, kNONE, kNONE, kNONE, kd8, kNONE
+};
+
+static const enum Operand operand_1_table [256] = {
+  // 0x
+  kNONE, kd16, kA, kNONE, kNONE, kNONE, kd8, kNONE,
+  kSP, kBC, kDEREF_BC, kNONE, kNONE, kNONE, kd8, kNONE,
+  // 1x
+  kNONE, kd16, kA, kNONE, kNONE, kNONE, kd8, kNONE,
+  kNONE, kDE, kDEREF_DE, kNONE, kNONE, kNONE, kd8, kNONE,
+  // 2x
+  kNONE, kd16, kA, kNONE, kNONE, kNONE, kd8, kNONE,
+  kNONE, kHL, kDEREF_HL_INC, kNONE, kNONE, kNONE, kd8, kNONE,
+  // 3x
+  kNONE, kd16, kA, kNONE, kNONE, kNONE, kd8, kNONE,
+  kNONE, kSP, kDEREF_HL_DEC, kNONE, kNONE, kNONE, kd8, kNONE,
+  // 4x
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  // 5x
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  // 6x
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  // 7x
+  kB, kC, kD, kE, kH, kL, kNONE, kA,
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  // 8x
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  // 9x
+  kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE,
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  // Ax
+  kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE,
+  kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE,
+  // Bx
+  kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE,
+  kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE,
+  // Cx
+  kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kd8, kNONE,
+  kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kd8, kNONE,
+  // Dx
+  kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE,
+  kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kd8, kNONE,
+  // Ex
+  kA, kNONE, kA, kNONE, kNONE, kNONE, kNONE, kNONE,
+  kr8, kNONE, kA, kNONE, kNONE, kNONE, kNONE, kNONE,
+  // Fx
+  kA, kNONE, kA, kNONE, kNONE, kNONE, kNONE, kNONE,
+  kSP_r8, kHL, kDEREF_a16, kNONE, kNONE, kNONE, kNONE, kNONE
 };
 
 struct instruction {
