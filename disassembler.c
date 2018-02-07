@@ -108,6 +108,7 @@ enum __attribute__((packed)) Opcode {
   kCCF,
   // jumps
   kJP,
+  kJR,
   kCALL,
   kRET,
   kRST,
@@ -145,6 +146,7 @@ static const char* const opcode_str_table [] = {
   "SCF",
   "CCF",
   "JP",
+  "JR",
   "CALL",
   "RET",
   "RST",
@@ -159,13 +161,13 @@ static const enum Opcode decode_table [256] = {
   kLD, kADD, kLD, kDEC, kINC, kDEC, kLD, kRRC,
   // 1x
   kSTOP, kLD, kLD, kINC, kINC, kDEC, kLD, kRL,
-  kJP, kADD, kLD, kDEC, kINC, kDEC, kLD, kRR,
+  kJR, kADD, kLD, kDEC, kINC, kDEC, kLD, kRR,
   // 2x
-  kJP, kLD, kLD, kINC, kINC, kDEC, kLD, kDAA,
-  kJP, kADD, kLD, kDEC, kINC, kDEC, kLD, kCPL,
+  kJR, kLD, kLD, kINC, kINC, kDEC, kLD, kDAA,
+  kJR, kADD, kLD, kDEC, kINC, kDEC, kLD, kCPL,
   // 3x
-  kJP, kLD, kLD, kINC, kINC, kDEC, kLD, kSCF,
-  kJP, kADD, kLD, kDEC, kINC, kDEC, kLD, kCCF,
+  kJR, kLD, kLD, kINC, kINC, kDEC, kLD, kSCF,
+  kJR, kADD, kLD, kDEC, kINC, kDEC, kLD, kCCF,
   // 4x
   kLD, kLD, kLD, kLD, kLD, kLD, kLD, kLD,
   kLD, kLD, kLD, kLD, kLD, kLD, kLD, kLD,
@@ -227,7 +229,13 @@ enum Operand {
   kDEREF_HL_INC,
   kDEREF_HL_DEC,
   kSP,
+  // conditions (only used by JP)
+  kCOND_Z,
+  kCOND_NZ,
+  kCOND_C,
+  kCOND_NC,
   // Should not be assigned, just used to delimit operands that add to
+  // instruction length.  Operands that appear after this enum add one to the
   // instruction length.
   kINSTRUCTION_LENGTH_0,
   // Literals
@@ -236,9 +244,11 @@ enum Operand {
   kSP_r8,
   kDEREF_a8,
   // Should not be assigned, just used to delimit operands that add to
+  // instruction length.  Operands that appear after this enum add two to the
   // instruction length.
   kINSTRUCTION_LENGTH_1,
   kd16,
+  ka16,
   kDEREF_a16,
 };
 
@@ -262,6 +272,10 @@ static const char* const operand_str_table [] = {
   "(HL+)",
   "(HL-)",
   "SP",
+  "Z",
+  "NZ",
+  "C",
+  "NC",
   // kINSTRUCTION_LENGTH_0
   "SHOULD NOT BE POSSIBLE",
   "d8",
@@ -271,6 +285,7 @@ static const char* const operand_str_table [] = {
   // kINSTRUCTION_LENGTH_1
   "SHOULD NOT BE POSSIBLE",
   "d16",
+  "a16",
   "(a16)"
 };
 
@@ -280,13 +295,13 @@ static const enum Operand operand_0_table [256] = {
   kDEREF_a16, kHL, kA, kBC, kC, kC, kC, kNONE,
   // 1x
   kNONE, kDE, kDEREF_DE, kDE, kD, kD, kD, kNONE,
-  kr8, kHL, kA, kDE, kE, kE, kE, kNONE,
+  kNONE, kHL, kA, kDE, kE, kE, kE, kNONE,
   // 2x
-  kNONE, kHL, kDEREF_HL_INC, kHL, kH, kH, kH, kNONE,
-  kNONE, kHL, kA, kHL, kL, kL, kL, kNONE,
+  kCOND_NZ, kHL, kDEREF_HL_INC, kHL, kH, kH, kH, kNONE,
+  kCOND_Z, kHL, kA, kHL, kL, kL, kL, kNONE,
   // 3x
-  kNONE, kSP, kDEREF_HL_DEC, kSP, kDEREF_HL, kDEREF_HL, kDEREF_HL, kNONE,
-  kNONE, kHL, kA, kSP, kA, kA, kA, kNONE,
+  kCOND_NC, kSP, kDEREF_HL_DEC, kSP, kDEREF_HL, kDEREF_HL, kDEREF_HL, kNONE,
+  kCOND_C, kHL, kA, kSP, kA, kA, kA, kNONE,
   // 4x
   kB, kB, kB, kB, kB, kB, kB, kB,
   kC, kC, kC, kC, kC, kC, kC, kC,
@@ -313,11 +328,11 @@ static const enum Operand operand_0_table [256] = {
   kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
   kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
   // Cx
-  kNONE, kBC, kNONE, kNONE, kNONE, kBC, kA, kNONE,
-  kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kA, kNONE,
+  kCOND_NZ, kBC, kCOND_NZ, kNONE, kCOND_NZ, kBC, kA, kNONE,
+  kNONE, kNONE, kCOND_Z, kNONE, kCOND_Z, kNONE, kA, kNONE,
   // Dx
-  kNONE, kDE, kNONE, kNONE, kNONE, kDE, kNONE, kNONE,
-  kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kA, kNONE,
+  kCOND_NC, kDE, kCOND_NC, kNONE, kCOND_NZ, kDE, kNONE, kNONE,
+  kNONE, kNONE, kCOND_C, kNONE, kNONE, kNONE, kA, kNONE,
   // Ex
   kDEREF_a8, kHL, kDEREF_C, kNONE, kNONE, kHL, kd8, kNONE,
   kSP, kDEREF_HL, kDEREF_a16, kNONE, kNONE, kNONE, kd8, kNONE,
@@ -332,13 +347,13 @@ static const enum Operand operand_1_table [256] = {
   kSP, kBC, kDEREF_BC, kNONE, kNONE, kNONE, kd8, kNONE,
   // 1x
   kNONE, kd16, kA, kNONE, kNONE, kNONE, kd8, kNONE,
-  kNONE, kDE, kDEREF_DE, kNONE, kNONE, kNONE, kd8, kNONE,
+  kr8, kDE, kDEREF_DE, kNONE, kNONE, kNONE, kd8, kNONE,
   // 2x
-  kNONE, kd16, kA, kNONE, kNONE, kNONE, kd8, kNONE,
-  kNONE, kHL, kDEREF_HL_INC, kNONE, kNONE, kNONE, kd8, kNONE,
+  kr8, kd16, kA, kNONE, kNONE, kNONE, kd8, kNONE,
+  kr8, kHL, kDEREF_HL_INC, kNONE, kNONE, kNONE, kd8, kNONE,
   // 3x
-  kNONE, kd16, kA, kNONE, kNONE, kNONE, kd8, kNONE,
-  kNONE, kSP, kDEREF_HL_DEC, kNONE, kNONE, kNONE, kd8, kNONE,
+  kr8, kd16, kA, kNONE, kNONE, kNONE, kd8, kNONE,
+  kr8, kSP, kDEREF_HL_DEC, kNONE, kNONE, kNONE, kd8, kNONE,
   // 4x
   kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
   kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
@@ -364,16 +379,16 @@ static const enum Operand operand_1_table [256] = {
   kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE,
   kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE,
   // Cx
-  kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kd8, kNONE,
-  kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kd8, kNONE,
+  kNONE, kNONE, ka16, ka16, ka16, kNONE, kd8, kNONE,
+  kNONE, kNONE, ka16, kNONE, ka16, ka16, kd8, kNONE,
   // Dx
-  kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE,
-  kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kd8, kNONE,
+  kNONE, kNONE, ka16, kNONE, ka16, kNONE, kNONE, kNONE,
+  kNONE, kNONE, ka16, kNONE, ka16, kNONE, kd8, kNONE,
   // Ex
   kA, kNONE, kA, kNONE, kNONE, kNONE, kNONE, kNONE,
-  kr8, kNONE, kA, kNONE, kNONE, kNONE, kNONE, kNONE,
+  kr8, kDEREF_HL, kA, kNONE, kNONE, kNONE, kNONE, kNONE,
   // Fx
-  kA, kNONE, kA, kNONE, kNONE, kNONE, kNONE, kNONE,
+  kDEREF_a8, kNONE, kA, kNONE, kNONE, kNONE, kNONE, kNONE,
   kSP_r8, kHL, kDEREF_a16, kNONE, kNONE, kNONE, kNONE, kNONE
 };
 
@@ -396,7 +411,14 @@ void decode_instruction (const struct rom* const rom, const uint16_t pc,
   instruction->rom_addr = pc;
   const uint8_t first_byte = rom->data[pc];
   instruction->opcode = decode_table[first_byte];
-  assert(instruction->opcode != kInvalid);
+  // Not sure we ever want assert here. Parsing should not fail because this
+  // may be static data that we're trying to interpret as an instruction.
+  /*assert(instruction->opcode != kInvalid);*/
+  if (instruction->opcode == kInvalid) {
+    fprintf(stderr, "Looks like were trying to decode data as instructions,\n"
+        "rest of disassembly may be invalid from this point.\n WARN: "
+        PRIshort "\n", pc);
+  }
   instruction->operands[0] = operand_0_table[first_byte];
   instruction->operands[1] = operand_1_table[first_byte];
   // calculate instruction length
