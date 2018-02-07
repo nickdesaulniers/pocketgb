@@ -69,7 +69,9 @@ enum __attribute__((packed)) Opcode {
   kNOP,
   kSTOP,
   kHALT,
-  // load store
+  // Loads (stores are just loads where dest is dereferenced).
+  // Most loads are register to register, so encode length == 1.  When a
+  // literal is passed, it may be a longer load due to the size of the literal.
   kLD,
   kPUSH,
   kPOP,
@@ -78,7 +80,9 @@ enum __attribute__((packed)) Opcode {
   kDEC,
   // rotates
   kRL,
+  kRLC,
   kRR,
+  kRRC,
   // math
   kADD,
   kADC,
@@ -109,8 +113,8 @@ enum __attribute__((packed)) Opcode {
 
 static const enum Opcode decode_table [256] = {
   // 0x
-  kNOP, kLD, kLD, kINC, kINC, kDEC, kLD, kRL,
-  kLD, kADD, kLD, kDEC, kINC, kDEC, kLD, kRR,
+  kNOP, kLD, kLD, kINC, kINC, kDEC, kLD, kRLC,
+  kLD, kADD, kLD, kDEC, kINC, kDEC, kLD, kRRC,
   // 1x
   kSTOP, kLD, kLD, kINC, kINC, kDEC, kLD, kRL,
   kJP, kADD, kLD, kDEC, kINC, kDEC, kLD, kRR,
@@ -158,16 +162,93 @@ static const enum Opcode decode_table [256] = {
   kLD, kLD, kLD, kEI, kInvalid, kInvalid, kCP, kRST
 };
 
-/*enum CbOpcode {};*/
 
-struct operand {};
+enum Operand {
+  kNONE,
+  // 8b
+  kA,
+  kB,
+  kC,
+  kDEREF_C, // more like *(0xFF00 + C)
+  kD,
+  kE,
+  kH,
+  kL,
+  // 16b
+  kAF,
+  kBC,
+  kDEREF_BC,
+  kDE,
+  kDEREF_DE,
+  kHL,
+  kDEREF_HL,
+  kDEREF_HL_INC,
+  kDEREF_HL_DEC,
+  kSP,
+  // Literals
+  kd8,
+  kr8,
+  kDEREF_a8,
+  kDEREF_a16,
+};
+static const enum Operand operand_0_table [256] = {
+  // 0x
+  kNONE, kBC, kDEREF_BC, kBC, kB, kB, kB, kNONE,
+  kDEREF_a16, kHL, kA, kBC, kC, kC, kC, kNONE,
+  // 1x
+  kNONE, kDE, kDEREF_DE, kDE, kD, kD, kD, kNONE,
+  kr8, kHL, kA, kDE, kE, kE, kE, kNONE,
+  // 2x
+  kNONE, kHL, kDEREF_HL_INC, kHL, kH, kH, kH, kNONE,
+  kNONE, kHL, kA, kHL, kL, kL, kL, kNONE,
+  // 3x
+  kNONE, kSP, kDEREF_HL_DEC, kSP, kDEREF_HL, kDEREF_HL, kDEREF_HL, kNONE,
+  kNONE, kHL, kA, kSP, kA, kA, kA, kNONE,
+  // 4x
+  kB, kB, kB, kB, kB, kB, kB, kB,
+  kC, kC, kC, kC, kC, kC, kC, kC,
+  // 5x
+  kD, kD, kD, kD, kD, kD, kD, kD,
+  kE, kE, kE, kE, kE, kE, kE, kE,
+  // 6x
+  kH, kH, kH, kH, kH, kH, kH, kH,
+  kL, kL, kL, kL, kL, kL, kL, kL,
+  // 7x
+  kDEREF_HL, kDEREF_HL, kDEREF_HL, kDEREF_HL,
+  kDEREF_HL, kDEREF_HL, kNONE, kDEREF_HL,
+  kA, kA, kA, kA, kA, kA, kA, kA,
+  // 8x
+  kA, kA, kA, kA, kA, kA, kA, kA,
+  kA, kA, kA, kA, kA, kA, kA, kA,
+  // 9x
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  kA, kA, kA, kA, kA, kA, kA, kA,
+  // Ax
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  // Bx
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  // Cx
+  kNONE, kBC, kNONE, kNONE, kNONE, kBC, kA, kNONE,
+  kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kA, kNONE,
+  // Dx
+  kNONE, kDE, kNONE, kNONE, kNONE, kDE, kNONE, kNONE,
+  kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kA, kNONE,
+  // Ex
+  kDEREF_a8, kHL, kDEREF_C, kNONE, kNONE, kHL, kd8, kNONE,
+  kSP, kDEREF_HL, kDEREF_a16, kNONE, kNONE, kNONE, kd8, kNONE,
+  // Fx
+  kA, kAF, kA, kNONE, kNONE, kAF, kd8, kNONE,
+  kHL, kSP, kA, kNONE, kNONE, kNONE, kd8, kNONE
+};
 
 struct instruction {
   char* name;
   uint8_t* rom_addr; // where in the rom we found this
   enum Opcode opcode;
   /*enum CbOpcode cb_opcode;*/
-  struct operand operands [2];
+  /*struct operand operands [2];*/
   char instruction_length;
 };
 
