@@ -1,9 +1,16 @@
+#include <assert.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdint.h>
+#include <string.h>
 
+#define PRIbyte "0x%02hhX"
 static void pbyte (const uint8_t b) {
-  printf("0x%02hhX\n", b);
+  printf(PRIbyte "\n", b);
+}
+#define PRIshort "0x%04hX"
+static void pshort (const uint16_t s) {
+  printf(PRIshort "\n", s);
 }
 
 // return 0 on error
@@ -108,7 +115,42 @@ enum __attribute__((packed)) Opcode {
   kCB,
   // Interrupts
   kEI,
-  kDI,
+  kDI
+};
+
+static const char* const opcode_str_table [] = {
+  "INVALID",
+  "NOP",
+  "STOP",
+  "HALT",
+  "LD",
+  "PUSH",
+  "POP",
+  "INC",
+  "DEC",
+  "RL",
+  "RLC",
+  "RR",
+  "RRC",
+  "ADD",
+  "ADC",
+  "SUB",
+  "SBC",
+  "CP",
+  "DAA",
+  "AND",
+  "XOR",
+  "OR",
+  "CPL",
+  "SCF",
+  "CCF",
+  "JP",
+  "CALL",
+  "RET",
+  "RST",
+  "CB",
+  "EI",
+  "DI"
 };
 
 static const enum Opcode decode_table [256] = {
@@ -185,12 +227,45 @@ enum Operand {
   kDEREF_HL_INC,
   kDEREF_HL_DEC,
   kSP,
+  // Should not be assigned, just used to delimit operands that add to
+  // instruction length.
+  kINSTRUCTION_LENGTH_0,
   // Literals
   kd8,
   kr8,
   kDEREF_a8,
+  // Should not be assigned, just used to delimit operands that add to
+  // instruction length.
+  kINSTRUCTION_LENGTH_1,
   kDEREF_a16,
 };
+
+static const char* const operand_str_table [] = {
+  "",
+  "A",
+  "B",
+  "C",
+  "(C)",
+  "D",
+  "E",
+  "H",
+  "L",
+  "AF",
+  "BC",
+  "(BC)",
+  "DE",
+  "(DE)",
+  "HL",
+  "(HL)",
+  "(HL+)",
+  "(HL-)",
+  "SP",
+  "d8",
+  "r8",
+  "(a8)",
+  "(a16)"
+};
+
 static const enum Operand operand_0_table [256] = {
   // 0x
   kNONE, kBC, kDEREF_BC, kBC, kB, kB, kB, kNONE,
@@ -244,29 +319,43 @@ static const enum Operand operand_0_table [256] = {
 };
 
 struct instruction {
-  char* name;
-  uint8_t* rom_addr; // where in the rom we found this
+  // where in the rom we found this
+  uint16_t rom_addr;
+  // the byte values you'd see in hexdump
+  /*uint8_t raw_values [3];*/
   enum Opcode opcode;
+  enum Operand operands [2];
   /*enum CbOpcode cb_opcode;*/
-  /*struct operand operands [2];*/
   char instruction_length;
+  /*char* name;*/
 };
 
-static enum Opcode decode_opcode (const uint8_t* const data, const size_t pc) {
-  const uint8_t first_byte = data[pc];
-  const enum Opcode opcode = decode_table[first_byte];
-  return kInvalid;
+void decode_instruction (const struct rom* const rom, const uint16_t pc,
+    struct instruction* const instruction) {
+  memset(instruction, 0, sizeof(*instruction));
+  instruction->rom_addr = pc;
+  const uint8_t first_byte = rom->data[pc];
+  instruction->opcode = decode_table[first_byte];
+  instruction->operands[0] = operand_0_table[first_byte];
+}
+
+void print_instruction (const struct instruction* const instruction) {
+  const enum Operand op0 = instruction->operands[0];
+  assert(op0 != kINSTRUCTION_LENGTH_0);
+  assert(op0 != kINSTRUCTION_LENGTH_1);
+
+  printf(PRIshort ": %s %s\n",
+      instruction->rom_addr,
+      opcode_str_table[instruction->opcode],
+      operand_str_table[instruction->operands[0]]);
 }
 
 int disassemble (const struct rom* const rom) {
-  size_t pc = 0;
+  uint16_t pc = 0;
+  struct instruction instruction;
   while (pc < rom->size) {
-    // index into rom
-    printf("pc: %zu\n", pc);
-    const enum Opcode opcode = decode_opcode(rom->data, pc);
-    /*const uint8_t first_byte = rom->data[pc];*/
-    /*printf("read: ");*/
-    /*pbyte(first_byte);*/
+    decode_instruction(rom, pc, &instruction);
+    print_instruction(&instruction);
     break; //
   }
   return 0;
