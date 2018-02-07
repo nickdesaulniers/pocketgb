@@ -262,10 +262,14 @@ static const char* const operand_str_table [] = {
   "(HL+)",
   "(HL-)",
   "SP",
+  // kINSTRUCTION_LENGTH_0
+  "SHOULD NOT BE POSSIBLE",
   "d8",
   "r8",
   "SP+r8",
   "(a8)",
+  // kINSTRUCTION_LENGTH_1
+  "SHOULD NOT BE POSSIBLE",
   "d16",
   "(a16)"
 };
@@ -381,7 +385,8 @@ struct instruction {
   enum Opcode opcode;
   enum Operand operands [2];
   /*enum CbOpcode cb_opcode;*/
-  char instruction_length;
+  // length in bytes for this instruction
+  uint8_t length;
   /*char* name;*/
 };
 
@@ -391,7 +396,19 @@ void decode_instruction (const struct rom* const rom, const uint16_t pc,
   instruction->rom_addr = pc;
   const uint8_t first_byte = rom->data[pc];
   instruction->opcode = decode_table[first_byte];
+  assert(instruction->opcode != kInvalid);
   instruction->operands[0] = operand_0_table[first_byte];
+  instruction->operands[1] = operand_1_table[first_byte];
+  // calculate instruction length
+  const uint8_t len = 1 +
+    (instruction->opcode == kCB) +
+    (instruction->operands[0] > kINSTRUCTION_LENGTH_0) +
+    (instruction->operands[0] > kINSTRUCTION_LENGTH_1) +
+    (instruction->operands[1] > kINSTRUCTION_LENGTH_0) +
+    (instruction->operands[1] > kINSTRUCTION_LENGTH_1);
+  assert(len > 0);
+  assert(len < 4);
+  instruction->length = len;
 }
 
 void print_instruction (const struct instruction* const instruction) {
@@ -399,10 +416,12 @@ void print_instruction (const struct instruction* const instruction) {
   assert(op0 != kINSTRUCTION_LENGTH_0);
   assert(op0 != kINSTRUCTION_LENGTH_1);
 
-  printf(PRIshort ": %s %s\n",
+  printf(PRIshort ": %s %s %s: %d\n",
       instruction->rom_addr,
       opcode_str_table[instruction->opcode],
-      operand_str_table[instruction->operands[0]]);
+      operand_str_table[instruction->operands[0]],
+      operand_str_table[instruction->operands[1]],
+      instruction->length);
 }
 
 int disassemble (const struct rom* const rom) {
@@ -411,7 +430,7 @@ int disassemble (const struct rom* const rom) {
   while (pc < rom->size) {
     decode_instruction(rom, pc, &instruction);
     print_instruction(&instruction);
-    break; //
+    pc += instruction.length;
   }
   return 0;
 }
