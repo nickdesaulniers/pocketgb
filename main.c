@@ -47,7 +47,10 @@ int main (int argc, char** argv) {
     }
 
     instr i = decode(&lr35902);
+    uint16_t pre_op_pc = lr35902.registers.pc;
     i(&lr35902);
+    // otherwise i forgot to update pc
+    assert(pre_op_pc != lr35902.registers.pc);
     puts("===");
     // TODO: return actual timings from instructions
     update_lcd(&lcd, 4);

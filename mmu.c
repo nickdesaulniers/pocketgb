@@ -6,8 +6,7 @@
 
 static void handle_hardware_io_side_effects(struct mmu* const mem,
     const uint16_t addr, const uint8_t val);
-static void handle_tile_write (struct mmu* const mem,
-    const uint16_t addr, const uint8_t val);
+static void handle_tile_write (const uint16_t addr);
 
 uint8_t rb (const struct mmu* const mem, const uint16_t addr) {
   // todo: fancy case statement
@@ -22,7 +21,7 @@ void wb (struct mmu* const mem, const uint16_t addr, const uint8_t val) {
   switch (addr & 0xF000) {
     case 0x8000:
     case 0x9000: // intentional fallthrough
-      handle_tile_write(mem, addr, val);
+      handle_tile_write(addr);
       break;
     case 0xF000:
       switch (addr & 0x0F00) {
@@ -47,7 +46,7 @@ static size_t get_filesize (FILE* f) {
     return 0;
   }
   long fsize = ftell(f);
-  if (fsize > SIZE_MAX || fsize <= 0) {
+  if (fsize <= 0 || (size_t)fsize > SIZE_MAX) {
     return 0;
   }
   rewind(f);
@@ -70,10 +69,7 @@ static int read_file_into_memory (const char* const path, void* dest) {
   if (read != fsize) {
     return -1;
   }
-
-  if (fclose(f)) {
-    return -1;
-  }
+  return fclose(f);
 }
 
 // http://gameboy.mongenel.com/dmg/asmmemmap.html
@@ -169,8 +165,7 @@ static void handle_hardware_io_side_effects(struct mmu* const mem,
 }
 
 
-static void handle_tile_write (struct mmu* const mem,
-    const uint16_t addr, const uint8_t val) {
+static void handle_tile_write (const uint16_t addr) {
   if (addr < 0x87FF) {
     printf("write to tile set #1 %X\n", addr);
   } else if (addr < 0x8FFF) {

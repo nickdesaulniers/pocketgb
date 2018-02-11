@@ -224,7 +224,7 @@ void create_debug_windows (struct window_list** window_list_head) {
     SDL_CreateWindow("Debug Tilemapped Tiles",
         SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 32 * 8, 32 * 8, 0)
   };
-  for (int i = 0; i < sizeof(debug_windows) / sizeof(SDL_Window*); ++i) {
+  for (unsigned int i = 0; i < sizeof(debug_windows) / sizeof(SDL_Window*); ++i) {
     SDL_Renderer* renderer = get_cleared_renderer(debug_windows[i]);
     assert(renderer != NULL);
     window_list_insert(window_list_head, debug_windows[i], renderer);
