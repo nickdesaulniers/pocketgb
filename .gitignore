@@ -1,5 +1,6 @@
 *.gb
 *.bin
 *.swp
+disassembler
 pocketgb
 tags
