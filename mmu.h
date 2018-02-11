@@ -7,6 +7,8 @@
 // http://gameboy.mongenel.com/dmg/asmmemmap.html
 struct mmu {
   uint8_t memory [65536];
+  // the BIOS covers this until write to 0xFF50
+  uint8_t rom_masked_by_bios [256];
   struct cpu* cpu;
 };
 

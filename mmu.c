@@ -89,6 +89,11 @@ struct mmu* init_memory (char** roms, const int len) {
       free(mem);
       return NULL;
     }
+    // When memory is initialized, the boot rom masks 0x00-0xFF until write to
+    // 0xFF50. Make a backup of it.
+    if (i == len) {
+      memcpy(mem->rom_masked_by_bios, mem, 256);
+    }
   }
 
   return mem;
@@ -102,6 +107,8 @@ void deinit_memory (struct mmu* const mem) {
 
 
 static void power_up_sequence (struct mmu* const mem) {
+  // remove the BIOS
+  memcpy(mem, mem->rom_masked_by_bios, 256);
   cpu_power_up(mem->cpu);
   wb(mem, 0xFF05, 0x00); // TIMA
   wb(mem, 0xFF06, 0x00); // TMA
@@ -142,6 +149,13 @@ static void power_up_sequence (struct mmu* const mem) {
 static void handle_hardware_io_side_effects(struct mmu* const mem,
     const uint16_t addr, const uint8_t val) {
   switch (addr & 0x00F0) {
+    case 0x0040:
+      switch (addr & 0x000F) {
+        case 0x0000:
+          printf("write to LCDC: %d\n", val);
+          break;
+      }
+      break;
     case 0x0050:
       switch (addr & 0x0000F) {
         case 0x0000:
@@ -164,8 +178,8 @@ static void handle_tile_write (struct mmu* const mem,
   } else if (addr < 0x97FF) {
     printf("write to tile set #0 %X\n", addr);
   } else if (addr < 0x9BFF) {
-    printf("write to tile map #1 %X\n", addr);
-  } else {
     printf("write to tile map #0 %X\n", addr);
+  } else {
+    printf("write to tile map #1 %X\n", addr);
   }
 }

@@ -564,7 +564,6 @@ static void JP_a16 (struct cpu* const lr35902) {
 static void CALL_a16 (struct cpu* const lr35902) {
   puts("CALL a16");
   // push address of next instruction onto stack
-  pshort(lr35902->registers.sp);
   lr35902->registers.sp -= 2;
   store_d16(lr35902, lr35902->registers.sp, lr35902->registers.pc + 3);
 
@@ -581,6 +580,15 @@ static void RET (struct cpu* const lr35902) {
   lr35902->registers.sp += 2;
   // jump to that address
   lr35902->registers.pc = a;
+}
+
+static void RST_28 (struct cpu* const lr35902) {
+  puts("RST 0x28");
+  // Push present address onto stack.
+  lr35902->registers.sp -= 2;
+  store_d16(lr35902, lr35902->registers.sp, lr35902->registers.pc);
+  // Jump to address $0000 + n.
+  lr35902->registers.pc = 0x28;
 }
 
 static void RLA (struct cpu* const lr35902) {
@@ -697,7 +705,7 @@ static const instr opcodes [256] = {
   OR_B, OR_C, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, CP_DEREF_HL, 0, // Bx
   0, POP_BC, 0, JP_a16, 0, PUSH_BC, 0, 0, 0, RET, 0, handle_cb, 0, CALL_a16, 0, 0, // Cx
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // Dx
-  LDH_DEREF_a8_A, 0, LD_DEREF_C_A, 0, 0, 0, AND_d8, 0, 0, 0, LD_DEREF_a16_A, 0, 0, 0, 0, 0, // Ex
+  LDH_DEREF_a8_A, 0, LD_DEREF_C_A, 0, 0, 0, AND_d8, 0, 0, 0, LD_DEREF_a16_A, 0, 0, 0, 0, RST_28, // Ex
   LDH_A_DEREF_a8, 0, 0, DI, 0, 0, 0, 0, 0, 0, 0, EI, 0, 0, CP_d8, 0  // Fx
 };
 
