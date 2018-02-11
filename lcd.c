@@ -10,7 +10,7 @@ static void transition (struct lcd* const lcd, const uint8_t mode) {
 }
 
 static int is_lcd_on (const struct lcd* const lcd) {
-  const uint8_t lcdc = rb(lcd->mmu, 0xFF00);
+  const uint8_t lcdc = rb(lcd->mmu, 0xFF40);
   return !!(lcdc & (1 << 7));
 }
 
