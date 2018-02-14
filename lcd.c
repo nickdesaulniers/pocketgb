@@ -1,10 +1,14 @@
-#include <assert.h>
-#include <stdio.h>
-#include "SDL_render.h"
 #include "lcd.h"
 
+#include <assert.h>
+#include <stdio.h>
+
+#include "SDL_render.h"
+
+#include "logging.h"
+
 static void transition (struct lcd* const lcd, const uint8_t mode) {
-  printf("LCD: transition from %d to %d\n", lcd->mode, mode);
+  LOG(5, "LCD: transition from %d to %d\n", lcd->mode, mode);
   lcd->mode = mode;
   lcd->cycles_in_current_mode = 0;
 }
@@ -24,7 +28,7 @@ static void update_line (struct lcd* const lcd, const uint8_t cycles) {
     if (lcd->line == 154) {
       lcd->line = 0;
     }
-    printf("LCD: advancing to line %d\n", lcd->line);
+    LOG(5, "LCD: advancing to line %d\n", lcd->line);
     wb(lcd->mmu, 0xFF44, lcd->line);
   }
 }

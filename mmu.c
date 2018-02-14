@@ -1,8 +1,10 @@
+#include "mmu.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "mmu.h"
+#include "logging.h"
 
 static void handle_hardware_io_side_effects(struct mmu* const mem,
     const uint16_t addr, const uint8_t val);
@@ -142,13 +144,30 @@ static void power_up_sequence (struct mmu* const mem) {
   wb(mem, 0xFFFF, 0x00); // IE
 }
 
+// if 1XXX,XXXX is written to 0xFF02, start transfer of 0xFF01
+static void sc_write (struct mmu* const mem, const uint8_t val) {
+  if (val & 0x80) {
+    putchar(rb(mem, 0xFF01));
+  }
+}
+
 static void handle_hardware_io_side_effects(struct mmu* const mem,
     const uint16_t addr, const uint8_t val) {
   switch (addr & 0x00F0) {
+    case 0x0000:
+      switch (addr & 0x000F) {
+        case 0x0001:
+          LOG(7, "data written to SB %d %d\n", addr, val);
+          break;
+        case 0x0002:
+          sc_write(mem, val);
+          break;
+      }
+      break;
     case 0x0040:
       switch (addr & 0x000F) {
         case 0x0000:
-          printf("write to LCDC: %d\n", val);
+          LOG(7, "write to LCDC: %d\n", val);
           break;
       }
       break;
@@ -166,15 +185,15 @@ static void handle_hardware_io_side_effects(struct mmu* const mem,
 
 
 static void handle_tile_write (const uint16_t addr) {
-  if (addr < 0x87FF) {
-    printf("write to tile set #1 %X\n", addr);
-  } else if (addr < 0x8FFF) {
-    printf("write to tile set #1 or set #0 %X\n", addr);
-  } else if (addr < 0x97FF) {
-    printf("write to tile set #0 %X\n", addr);
-  } else if (addr < 0x9BFF) {
-    printf("write to tile map #0 %X\n", addr);
+  if (addr <= 0x87FF) {
+    LOG(4, "write to tile set #1 %X\n", addr);
+  } else if (addr <= 0x8FFF) {
+    LOG(4, "write to tile set #1 or set #0 %X\n", addr);
+  } else if (addr <= 0x97FF) {
+    LOG(4, "write to tile set #0 %X\n", addr);
+  } else if (addr <= 0x9BFF) {
+    LOG(4, "write to tile map #0 %X\n", addr);
   } else {
-    printf("write to tile map #1 %X\n", addr);
+    LOG(4, "write to tile map #1 %X\n", addr);
   }
 }

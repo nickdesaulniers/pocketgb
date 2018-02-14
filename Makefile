@@ -1,3 +1,5 @@
+LOG_LEVEL ?= 0
+
 SOURCES = \
 	cpu.c \
 	mmu.c \
@@ -6,6 +8,7 @@ SOURCES = \
 	main.c \
 
 FLAGS = \
+	-DLOG_LEVEL=$(LOG_LEVEL) \
 	-Wall \
 	-Werror \
 	-Wextra \

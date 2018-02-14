@@ -6,6 +6,7 @@
 
 #include "cpu.h"
 #include "lcd.h"
+#include "logging.h"
 #include "window_list.h"
 
 static bool breakpoint (const struct cpu* const cpu, const uint16_t pc_addr) {
@@ -51,7 +52,7 @@ int main (int argc, char** argv) {
     i(&lr35902);
     // otherwise i forgot to update pc
     assert(pre_op_pc != lr35902.registers.pc);
-    puts("===");
+    LOG(4, "===\n");
     // TODO: return actual timings from instructions
     update_lcd(&lcd, 4);
 

@@ -1,18 +1,15 @@
+#include "cpu.h"
+
 #include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
-#include "cpu.h"
 
-static void pbyte (const uint8_t b) {
-  printf("0x%02hhX\n", b);
-}
+#include "logging.h"
 
-static void pshort (const uint16_t s) {
-  printf("0x%04hX\n", s);
-}
-
-static void pflags (const struct flags f) {
-  printf("Flags (Z N H C) (%u %u %u %u)\n", f.z, f.n, f.h, f.c);
+static void pflags (const int level, const struct flags f) {
+  if (level <= LOG_LEVEL) {
+    printf("Flags (Z N H C) (%u %u %u %u)\n", f.z, f.n, f.h, f.c);
+  }
 }
 
 static uint16_t load_d16 (const struct cpu* const lr35902) {
@@ -36,31 +33,31 @@ static void store_d16 (const struct cpu* const cpu, const uint16_t addr,
 }
 
 static void CB_BIT_7_H (struct cpu* const lr35902) {
-  puts("BIT 7,H");
-  printf("h: %d\n", lr35902->registers.h);
-  printf("z: %d\n", lr35902->registers.f.z);
+  LOG(5, "BIT 7,H\n");
+  LOG(6, "h: %d\n", lr35902->registers.h);
+  LOG(6, "z: %d\n", lr35902->registers.f.z);
   lr35902->registers.f.z = (lr35902->registers.h & (1 << 6)) != 0;
-  printf("z: %d\n", lr35902->registers.f.z);
+  LOG(6, "z: %d\n", lr35902->registers.f.z);
   lr35902->registers.f.n = 0;
   lr35902->registers.f.h = 0;
 }
 
 static void CB_RL_C (struct cpu* const lr35902) {
   // rotate left aka circular shift
-  puts("RL C");
+  LOG(5, "RL C\n");
   const uint8_t n = lr35902->registers.c;
   const uint8_t r = (n << 1) | lr35902->registers.f.c;
-  pbyte(lr35902->registers.c);
+  PBYTE(6, lr35902->registers.c);
   lr35902->registers.f.z = r == 0;
   lr35902->registers.f.n = 0;
   lr35902->registers.f.h = 0;
   lr35902->registers.f.c = (n & 0x80) != 0;
   lr35902->registers.c = r;
-  pbyte(lr35902->registers.c);
+  PBYTE(6, lr35902->registers.c);
 }
 
 static void CB_SWAP (struct cpu* const lr35902) {
-  puts("SWAP");
+  LOG(5, "SWAP\n");
   const uint8_t x = lr35902->registers.a;
   lr35902->registers.a = (x & 0x0F) << 4 | (x & 0xF0) >> 4;
   lr35902->registers.f.z = !lr35902->registers.a;
@@ -91,7 +88,7 @@ static const instr cb_opcodes [256] = {
 instr decode_cb (const struct cpu* const cpu) {
   uint16_t pc = cpu->registers.pc;
   uint8_t opcode = rb(cpu->mmu, pc);
-  pbyte(opcode);
+  PBYTE(4, opcode);
   instr i = cb_opcodes[opcode];
   assert(i != 0);
   return i;
@@ -114,39 +111,39 @@ static void handle_cb (struct cpu* const cpu) {
 } while(0)
 
 static void INC_B (struct cpu* const lr35902) {
-  puts("INC B");
-  pbyte(lr35902->registers.b);
+  LOG(5, "INC B\n");
+  PBYTE(6, lr35902->registers.b);
   INC_REGISTER(b);
-  pbyte(lr35902->registers.b);
+  PBYTE(6, lr35902->registers.b);
 }
 
 static void INC_C (struct cpu* const lr35902) {
-  puts("INC C");
-  pbyte(lr35902->registers.c);
+  LOG(5, "INC C\n");
+  PBYTE(6, lr35902->registers.c);
   INC_REGISTER(c);
-  pbyte(lr35902->registers.c);
+  PBYTE(6, lr35902->registers.c);
 }
 
 static void INC_H (struct cpu* const lr35902) {
-  puts("INC H");
-  pbyte(lr35902->registers.h);
+  LOG(5, "INC H\n");
+  PBYTE(6, lr35902->registers.h);
   INC_REGISTER(h);
-  pbyte(lr35902->registers.h);
+  PBYTE(6, lr35902->registers.h);
 }
 
 static void INC_HL (struct cpu* const lr35902) {
-  puts("INC HL");
-  pshort(lr35902->registers.hl);
+  LOG(5, "INC HL\n");
+  PSHORT(6, lr35902->registers.hl);
   ++lr35902->registers.hl;
-  pshort(lr35902->registers.hl);
+  PSHORT(6, lr35902->registers.hl);
   ++lr35902->registers.pc;
 }
 
 static void INC_DE (struct cpu* const lr35902) {
-  puts("INC DE");
-  pshort(lr35902->registers.de);
+  LOG(5, "INC DE\n");
+  PSHORT(6, lr35902->registers.de);
   ++lr35902->registers.de;
-  pshort(lr35902->registers.de);
+  PSHORT(6, lr35902->registers.de);
   ++lr35902->registers.pc;
 }
 
@@ -159,62 +156,62 @@ static void INC_DE (struct cpu* const lr35902) {
 } while(0)
 
 static void DEC_A (struct cpu* const lr35902) {
-  puts("DEC A");
-  pbyte(lr35902->registers.a);
+  LOG(5, "DEC A\n");
+  PBYTE(6, lr35902->registers.a);
   DEC_REGISTER(a);
-  pbyte(lr35902->registers.a);
+  PBYTE(6, lr35902->registers.a);
 }
 
 static void DEC_B (struct cpu* const lr35902) {
-  puts("DEC B");
-  pbyte(lr35902->registers.b);
+  LOG(5, "DEC B\n");
+  PBYTE(6, lr35902->registers.b);
   DEC_REGISTER(b);
-  pbyte(lr35902->registers.b);
+  PBYTE(6, lr35902->registers.b);
 }
 
 static void DEC_C (struct cpu* const lr35902) {
-  puts("DEC C");
-  pbyte(lr35902->registers.c);
+  LOG(5, "DEC C\n");
+  PBYTE(6, lr35902->registers.c);
   DEC_REGISTER(c);
-  pbyte(lr35902->registers.c);
+  PBYTE(6, lr35902->registers.c);
 }
 
 static void DEC_D (struct cpu* const lr35902) {
-  puts("DEC D");
-  pbyte(lr35902->registers.d);
+  LOG(5, "DEC D\n");
+  PBYTE(6, lr35902->registers.d);
   DEC_REGISTER(d);
-  pbyte(lr35902->registers.d);
+  PBYTE(6, lr35902->registers.d);
 }
 
 static void DEC_E (struct cpu* const lr35902) {
-  puts("DEC E");
-  pbyte(lr35902->registers.e);
+  LOG(5, "DEC E\n");
+  PBYTE(6, lr35902->registers.e);
   DEC_REGISTER(e);
-  pbyte(lr35902->registers.e);
+  PBYTE(6, lr35902->registers.e);
 }
 
 static void DEC_BC (struct cpu* const lr35902) {
-  puts("DEC BC");
-  pshort(lr35902->registers.bc);
+  LOG(5, "DEC BC\n");
+  PSHORT(6, lr35902->registers.bc);
   DEC_REGISTER(bc);
-  pshort(lr35902->registers.bc);
+  PSHORT(6, lr35902->registers.bc);
 }
 
 static void NOP (struct cpu* const lr35902) {
-  puts("NOP");
+  LOG(5, "NOP\n");
   ++lr35902->registers.pc;
 }
 
 static void LD_SP_d16 (struct cpu* const lr35902) {
-  puts("LD SP,d16");
-  pshort(lr35902->registers.sp);
+  LOG(5, "LD SP,d16\n");
+  PSHORT(6, lr35902->registers.sp);
   lr35902->registers.sp = load_d16(lr35902);
-  pshort(lr35902->registers.sp);
+  PSHORT(6, lr35902->registers.sp);
   lr35902->registers.pc += 3;
 }
 
 static void XOR_A (struct cpu* const lr35902) {
-  puts("XOR A");
+  LOG(5, "XOR A\n");
   lr35902->registers.a = 0;
   lr35902->registers.f.z = 1;
   lr35902->registers.f.n = 0;
@@ -224,7 +221,7 @@ static void XOR_A (struct cpu* const lr35902) {
 }
 
 static void XOR_C (struct cpu* const lr35902) {
-  puts("XOR C");
+  LOG(5, "XOR C\n");
   lr35902->registers.a ^= lr35902->registers.c;
   lr35902->registers.f.z = 1;
   lr35902->registers.f.n = 0;
@@ -234,7 +231,7 @@ static void XOR_C (struct cpu* const lr35902) {
 }
 
 static void ADD_A (struct cpu* const lr35902) {
-  puts("ADD A");
+  LOG(5, "ADD A\n");
   lr35902->registers.a += lr35902->registers.a;
   lr35902->registers.f.z = lr35902->registers.a == 0;
   lr35902->registers.f.n = 0;
@@ -244,7 +241,7 @@ static void ADD_A (struct cpu* const lr35902) {
 }
 
 static void ADD_DEREF_HL (struct cpu* const lr35902) {
-  puts("ADD (HL)");
+  LOG(5, "ADD (HL)\n");
   lr35902->registers.a += rb(lr35902->mmu, lr35902->registers.hl);
   lr35902->registers.f.z = lr35902->registers.a == 0;
   lr35902->registers.f.n = 0;
@@ -254,7 +251,7 @@ static void ADD_DEREF_HL (struct cpu* const lr35902) {
 }
 
 static void ADD_HL_DE (struct cpu* const lr35902) {
-  puts("ADD HL,DE");
+  LOG(5, "ADD HL,DE\n");
   lr35902->registers.hl += lr35902->registers.de;
   lr35902->registers.f.n = 0;
   lr35902->registers.f.h = (lr35902->registers.hl & 0x10) == 0x10;
@@ -263,7 +260,7 @@ static void ADD_HL_DE (struct cpu* const lr35902) {
 }
 
 static void SUB_B (struct cpu* const lr35902) {
-  puts("SUB B");
+  LOG(5, "SUB B\n");
   lr35902->registers.a -= lr35902->registers.b;
   lr35902->registers.f.z = lr35902->registers.a == 0;
   lr35902->registers.f.n = 1;
@@ -273,154 +270,154 @@ static void SUB_B (struct cpu* const lr35902) {
 }
 
 static void LD_A_B (struct cpu* const lr35902) {
-  puts("LD A,B");
+  LOG(5, "LD A,B\n");
   lr35902->registers.a = lr35902->registers.b;
   ++lr35902->registers.pc;
 }
 
 static void LD_A_C (struct cpu* const lr35902) {
-  puts("LD A,C");
+  LOG(5, "LD A,C\n");
   lr35902->registers.a = lr35902->registers.c;
   ++lr35902->registers.pc;
 }
 
 static void LD_A_E (struct cpu* const lr35902) {
-  puts("LD A,E");
+  LOG(5, "LD A,E\n");
   lr35902->registers.a = lr35902->registers.e;
   ++lr35902->registers.pc;
 }
 
 static void LD_A_H (struct cpu* const lr35902) {
-  puts("LD A,H");
+  LOG(5, "LD A,H\n");
   lr35902->registers.a = lr35902->registers.h;
   ++lr35902->registers.pc;
 }
 
 static void LD_A_L (struct cpu* const lr35902) {
-  puts("LD A,L");
+  LOG(5, "LD A,L\n");
   lr35902->registers.a = lr35902->registers.l;
   ++lr35902->registers.pc;
 }
 
 static void LD_B_A (struct cpu* const lr35902) {
-  puts("LD B,A");
+  LOG(5, "LD B,A\n");
   lr35902->registers.b = lr35902->registers.a;
   ++lr35902->registers.pc;
 }
 
 static void LD_C_A (struct cpu* const lr35902) {
-  puts("LD C,A");
+  LOG(5, "LD C,A\n");
   lr35902->registers.c = lr35902->registers.a;
   ++lr35902->registers.pc;
 }
 
 static void LD_D_A (struct cpu* const lr35902) {
-  puts("LD D,A");
+  LOG(5, "LD D,A\n");
   lr35902->registers.d = lr35902->registers.a;
   ++lr35902->registers.pc;
 }
 
 static void LD_D_DEREF_HL (struct cpu* const lr35902) {
-  puts("LD D,(HL)");
+  LOG(5, "LD D,(HL)\n");
   lr35902->registers.d = rb(lr35902->mmu, lr35902->registers.hl);
   ++lr35902->registers.pc;
 }
 
 static void LD_E_A (struct cpu* const lr35902) {
-  puts("LD E,A");
+  LOG(5, "LD E,A\n");
   lr35902->registers.e = lr35902->registers.a;
   ++lr35902->registers.pc;
 }
 
 static void LD_E_DEREF_HL (struct cpu* const lr35902) {
-  puts("LD E,(HL)");
+  LOG(5, "LD E,(HL)\n");
   lr35902->registers.e = rb(lr35902->mmu, lr35902->registers.hl);
   ++lr35902->registers.pc;
 }
 
 static void LD_H_A (struct cpu* const lr35902) {
-  puts("LD H,A");
+  LOG(5, "LD H,A\n");
   lr35902->registers.h = lr35902->registers.a;
   ++lr35902->registers.pc;
 }
 
 static void LD_HL_d16 (struct cpu* const lr35902) {
-  puts("LD HL,d16");
-  pshort(lr35902->registers.hl);
+  LOG(5, "LD HL,d16\n");
+  PSHORT(6, lr35902->registers.hl);
   lr35902->registers.hl = load_d16(lr35902);
-  pshort(lr35902->registers.hl);
+  PSHORT(6, lr35902->registers.hl);
   lr35902->registers.pc += 3;
 }
 
 static void LD_BC_d16 (struct cpu* const lr35902) {
-  puts("LD BC,d16");
-  pshort(lr35902->registers.bc);
+  LOG(5, "LD BC,d16\n");
+  PSHORT(6, lr35902->registers.bc);
   lr35902->registers.bc = load_d16(lr35902);
-  pshort(lr35902->registers.bc);
+  PSHORT(6, lr35902->registers.bc);
   lr35902->registers.pc += 3;
 }
 
 static void LD_DE_d16 (struct cpu* const lr35902) {
-  puts("LD DE,d16");
-  pshort(lr35902->registers.de);
+  LOG(5, "LD DE,d16\n");
+  PSHORT(6, lr35902->registers.de);
   lr35902->registers.de = load_d16(lr35902);
-  pshort(lr35902->registers.de);
+  PSHORT(6, lr35902->registers.de);
   lr35902->registers.pc += 3;
 }
 
 static void LD_DEREF_HL_DEC_A (struct cpu* const lr35902) {
-  puts("LD (HL-),A");
+  LOG(5, "LD (HL-),A\n");
 
-  pbyte(rb(lr35902->mmu, lr35902->registers.hl));
+  PBYTE(6, rb(lr35902->mmu, lr35902->registers.hl));
   wb(lr35902->mmu, lr35902->registers.hl, lr35902->registers.a);
-  pbyte(rb(lr35902->mmu, lr35902->registers.hl));
+  PBYTE(6, rb(lr35902->mmu, lr35902->registers.hl));
 
-  pshort(lr35902->registers.hl);
+  PSHORT(6, lr35902->registers.hl);
   --lr35902->registers.hl;
-  pshort(lr35902->registers.hl);
+  PSHORT(6, lr35902->registers.hl);
 
   ++lr35902->registers.pc;
 }
 
 static void LD_DEREF_HL_INC_A (struct cpu* const lr35902) {
-  puts("LD (HL+),A");
+  LOG(5, "LD (HL+),A\n");
 
-  pbyte(rb(lr35902->mmu, lr35902->registers.hl));
+  PBYTE(6, rb(lr35902->mmu, lr35902->registers.hl));
   wb(lr35902->mmu, lr35902->registers.hl, lr35902->registers.a);
-  pbyte(rb(lr35902->mmu, lr35902->registers.hl));
+  PBYTE(6, rb(lr35902->mmu, lr35902->registers.hl));
 
-  pshort(lr35902->registers.hl);
+  PSHORT(6, lr35902->registers.hl);
   ++lr35902->registers.hl;
-  pshort(lr35902->registers.hl);
+  PSHORT(6, lr35902->registers.hl);
 
   ++lr35902->registers.pc;
 }
 
 // TODO: combine this with LD_DEREF_HL_DEC_A
 static void LD_DEREF_HL_A (struct cpu* const lr35902) {
-  puts("LD (HL),A");
+  LOG(5, "LD (HL),A\n");
 
-  pbyte(rb(lr35902->mmu, lr35902->registers.hl));
+  PBYTE(6, rb(lr35902->mmu, lr35902->registers.hl));
   wb(lr35902->mmu, lr35902->registers.hl, lr35902->registers.a);
-  pbyte(rb(lr35902->mmu, lr35902->registers.hl));
+  PBYTE(6, rb(lr35902->mmu, lr35902->registers.hl));
 
   ++lr35902->registers.pc;
 }
 
 static void LD_DEREF_HL_d8 (struct cpu* const lr35902) {
-  puts("LD (HL),d8");
+  LOG(5, "LD (HL),d8\n");
   const uint8_t d8 = load_d8(lr35902);
   wb(lr35902->mmu, lr35902->registers.hl, d8);
   lr35902->registers.pc += 2;
 }
 
 static void LD_DEREF_C_A (struct cpu* const lr35902) {
-  puts("LD (C),A");
+  LOG(5, "LD (C),A\n");
 
   // http://www.chrisantonellis.com/files/gameboy/gb-instructions.txt
-  pbyte(rb(lr35902->mmu, lr35902->registers.c + 0xFF00));
+  PBYTE(6, rb(lr35902->mmu, lr35902->registers.c + 0xFF00));
   wb(lr35902->mmu, lr35902->registers.c + 0xFF00, lr35902->registers.a);
-  pbyte(rb(lr35902->mmu, lr35902->registers.c + 0xFF00));
+  PBYTE(6, rb(lr35902->mmu, lr35902->registers.c + 0xFF00));
 
   // Errata in:
   // http://pastraiser.com/cpu/gameboy/gameboy_opcodes.html
@@ -429,10 +426,10 @@ static void LD_DEREF_C_A (struct cpu* const lr35902) {
 }
 
 static void LDH_DEREF_a8_A (struct cpu* const lr35902) {
-  puts("LDH (a8),A");
+  LOG(5, "LDH (a8),A\n");
   uint8_t a8 = load_d8(lr35902);
-  printf("where a8 == ");
-  pbyte(a8);
+  LOG(6, "where a8 == ");
+  PBYTE(6, a8);
 
   wb(lr35902->mmu, a8 + 0xFF00, lr35902->registers.a);
 
@@ -440,128 +437,128 @@ static void LDH_DEREF_a8_A (struct cpu* const lr35902) {
 }
 
 static void LDH_A_DEREF_a8 (struct cpu* const lr35902) {
-  puts("LDH A,(a8)");
+  LOG(5, "LDH A,(a8)\n");
   uint8_t a8 = load_d8(lr35902);
-  printf("where a8 == ");
-  pbyte(a8);
+  LOG(6, "where a8 == ");
+  PBYTE(6, a8);
 
   lr35902->registers.a = rb(lr35902->mmu, a8 + 0xFF00);
   lr35902->registers.pc += 2;
 }
 
 static void LD_C_d8 (struct cpu* const lr35902) {
-  puts("LD C,d8");
-  pbyte(lr35902->registers.c);
+  LOG(5, "LD C,d8\n");
+  PBYTE(6, lr35902->registers.c);
   lr35902->registers.c = load_d8(lr35902);
-  pbyte(lr35902->registers.c);
+  PBYTE(6, lr35902->registers.c);
   lr35902->registers.pc += 2;
 }
 
 static void LD_A_d8 (struct cpu* const lr35902) {
-  puts("LD A,d8");
-  pbyte(lr35902->registers.a);
+  LOG(5, "LD A,d8\n");
+  PBYTE(6, lr35902->registers.a);
   lr35902->registers.a = load_d8(lr35902);
-  pbyte(lr35902->registers.a);
+  PBYTE(6, lr35902->registers.a);
   lr35902->registers.pc += 2;
 }
 
 static void LD_B_d8 (struct cpu* const lr35902) {
-  puts("LD B,d8");
-  pbyte(lr35902->registers.b);
+  LOG(5, "LD B,d8\n");
+  PBYTE(6, lr35902->registers.b);
   lr35902->registers.b = load_d8(lr35902);
-  pbyte(lr35902->registers.b);
+  PBYTE(6, lr35902->registers.b);
   lr35902->registers.pc += 2;
 }
 
 static void LD_D_d8 (struct cpu* const lr35902) {
-  puts("LD D,d8");
-  pbyte(lr35902->registers.d);
+  LOG(5, "LD D,d8\n");
+  PBYTE(6, lr35902->registers.d);
   lr35902->registers.d = load_d8(lr35902);
-  pbyte(lr35902->registers.d);
+  PBYTE(6, lr35902->registers.d);
   lr35902->registers.pc += 2;
 }
 
 static void LD_L_d8 (struct cpu* const lr35902) {
-  puts("LD L,d8");
-  pbyte(lr35902->registers.l);
+  LOG(5, "LD L,d8\n");
+  PBYTE(6, lr35902->registers.l);
   lr35902->registers.l = load_d8(lr35902);
-  pbyte(lr35902->registers.l);
+  PBYTE(6, lr35902->registers.l);
   lr35902->registers.pc += 2;
 }
 
 static void LD_E_d8 (struct cpu* const lr35902) {
-  puts("LD E,d8");
-  pbyte(lr35902->registers.e);
+  LOG(5, "LD E,d8\n");
+  PBYTE(6, lr35902->registers.e);
   lr35902->registers.e = load_d8(lr35902);
-  pbyte(lr35902->registers.e);
+  PBYTE(6, lr35902->registers.e);
   lr35902->registers.pc += 2;
 }
 
 static void LD_A_DEREF_DE (struct cpu* const lr35902) {
-  puts("LD A,(DE)");
+  LOG(5, "LD A,(DE)\n");
 
-  pbyte(lr35902->registers.a);
+  PBYTE(6, lr35902->registers.a);
   lr35902->registers.a = rb(lr35902->mmu, lr35902->registers.de);
-  pbyte(lr35902->registers.a);
+  PBYTE(6, lr35902->registers.a);
   ++lr35902->registers.pc;
 }
 
 static void LD_A_DEREF_HL_INC (struct cpu* const lr35902) {
-  puts("LD A,(HL+)");
+  LOG(5, "LD A,(HL+)\n");
 
-  pbyte(lr35902->registers.a);
+  PBYTE(6, lr35902->registers.a);
   lr35902->registers.a = rb(lr35902->mmu, lr35902->registers.hl);
-  pbyte(lr35902->registers.a);
+  PBYTE(6, lr35902->registers.a);
 
-  pshort(lr35902->registers.hl);
+  PSHORT(6, lr35902->registers.hl);
   ++lr35902->registers.hl;
-  pshort(lr35902->registers.hl);
+  PSHORT(6, lr35902->registers.hl);
 
   ++lr35902->registers.pc;
 }
 
 static void LD_DEREF_a16_A (struct cpu* const lr35902) {
-  puts("LD (a16),A");
+  LOG(5, "LD (a16),A\n");
   const uint16_t a16 = load_d16(lr35902);
-  pshort(a16);
+  PSHORT(6, a16);
   wb(lr35902->mmu, a16, lr35902->registers.a);
   lr35902->registers.pc += 3;
 }
 
 static void PUSH_BC (struct cpu* const lr35902) {
-  puts("PUSH BC");
+  LOG(5, "PUSH BC\n");
 
   lr35902->registers.sp -= 2;
-  pshort(lr35902->registers.bc);
+  PSHORT(6, lr35902->registers.bc);
   store_d16(lr35902, lr35902->registers.sp, lr35902->registers.bc);
   ++lr35902->registers.pc;
 }
 
 static void PUSH_DE (struct cpu* const lr35902) {
-  puts("PUSH DE");
+  LOG(5, "PUSH DE\n");
 
   lr35902->registers.sp -= 2;
-  pshort(lr35902->registers.de);
+  PSHORT(6, lr35902->registers.de);
   store_d16(lr35902, lr35902->registers.sp, lr35902->registers.de);
   ++lr35902->registers.pc;
 }
 
 static void POP_BC (struct cpu* const lr35902) {
-  puts("POP BC");
+  LOG(5, "POP BC\n");
 
-  pshort(lr35902->registers.bc);
+  PSHORT(6, lr35902->registers.bc);
   lr35902->registers.bc = rw(lr35902->mmu, lr35902->registers.sp);
-  pshort(lr35902->registers.bc);
+  PSHORT(6, lr35902->registers.bc);
   lr35902->registers.sp += 2;
   ++lr35902->registers.pc;
 }
 
 static void POP_HL (struct cpu* const lr35902) {
-  puts("POP HL");
+  LOG(5, "POP HL\n");
 
-  pshort(lr35902->registers.hl);
+  PSHORT(6, lr35902->registers.hl);
   lr35902->registers.hl = rw(lr35902->mmu, lr35902->registers.sp);
-  pshort(lr35902->registers.hl);
+  PSHORT(6, lr35902->registers.hl);
   lr35902->registers.sp += 2;
   ++lr35902->registers.pc;
 }
@@ -571,61 +568,61 @@ static void __JR_r8 (struct cpu* const lr35902) {
 }
 
 static void JR_r8 (struct cpu* const lr35902) {
-  puts("JR r8");
+  LOG(5, "JR r8\n");
   // TODO: remove the double load when not debugging
   int8_t r8 = load_r8(lr35902);
-  printf("where r8 == %d\n", r8);
-  pshort(lr35902->registers.pc);
+  LOG(6, "where r8 == %d\n", r8);
+  PSHORT(6, lr35902->registers.pc);
   __JR_r8(lr35902);
-  pshort(lr35902->registers.pc);
+  PSHORT(6, lr35902->registers.pc);
 }
 
 static void __JR_COND_r8 (struct cpu* const lr35902, int cond) {
   if (cond) {
-    puts("jumping");
+    LOG(6, "jumping\n");
     __JR_r8(lr35902);
   } else {
-    puts("not jumping");
+    LOG(6, "not jumping\n");
     lr35902->registers.pc += 2;
   }
 }
 
 static void JR_NZ_r8 (struct cpu* const lr35902) {
-  puts("JR NZ,r8");
+  LOG(5, "JR NZ,r8\n");
   int8_t r8 = load_r8(lr35902);
-  printf("where r8 == %d\n", r8);
-  pshort(lr35902->registers.pc);
+  LOG(6, "where r8 == %d\n", r8);
+  PSHORT(6, lr35902->registers.pc);
 
   __JR_COND_r8(lr35902, !lr35902->registers.f.z);
 }
 
 static void JR_Z_r8 (struct cpu* const lr35902) {
-  puts("JR Z,r8");
+  LOG(5, "JR Z,r8\n");
   int8_t r8 = load_r8(lr35902);
-  printf("where r8 == %d\n", r8);
-  pshort(lr35902->registers.pc);
+  LOG(6, "where r8 == %d\n", r8);
+  PSHORT(6, lr35902->registers.pc);
 
   __JR_COND_r8(lr35902, lr35902->registers.f.z);
-  pshort(lr35902->registers.pc);
+  PSHORT(6, lr35902->registers.pc);
 }
 
 static void JP_a16 (struct cpu* const lr35902) {
-  puts("JP_a16");
+  LOG(5, "JP_a16\n");
   const uint16_t a16 = load_d16(lr35902);
-  printf("jumping to ");
-  pshort(a16);
+  LOG(6, "jumping to ");
+  PSHORT(6, a16);
   lr35902->registers.pc = a16;
 }
 
 static void JP_DEREF_HL (struct cpu* const lr35902) {
-  puts("JP (HL)");
+  LOG(5, "JP (HL)\n");
   lr35902->registers.pc = rw(lr35902->mmu, lr35902->registers.hl);
-  printf("jumping to ");
-  pshort(lr35902->registers.pc);
+  LOG(6, "jumping to ");
+  PSHORT(6, lr35902->registers.pc);
 }
 
 static void CALL_a16 (struct cpu* const lr35902) {
-  puts("CALL a16");
+  LOG(5, "CALL a16\n");
   // push address of next instruction onto stack
   lr35902->registers.sp -= 2;
   store_d16(lr35902, lr35902->registers.sp, lr35902->registers.pc + 3);
@@ -636,17 +633,17 @@ static void CALL_a16 (struct cpu* const lr35902) {
 }
 
 static void RET (struct cpu* const lr35902) {
-  puts("RET");
+  LOG(5, "RET\n");
   // pop 2B from stack
   const uint16_t a = rw(lr35902->mmu, lr35902->registers.sp);
-  pshort(a);
+  PSHORT(6, a);
   lr35902->registers.sp += 2;
   // jump to that address
   lr35902->registers.pc = a;
 }
 
 static void RST_28 (struct cpu* const lr35902) {
-  puts("RST 0x28");
+  LOG(5, "RST 0x28\n");
   // Push present address onto stack.
   lr35902->registers.sp -= 2;
   store_d16(lr35902, lr35902->registers.sp, lr35902->registers.pc);
@@ -655,24 +652,24 @@ static void RST_28 (struct cpu* const lr35902) {
 }
 
 static void RLA (struct cpu* const lr35902) {
-  puts("RLA");
+  LOG(5, "RLA\n");
   const uint8_t n = lr35902->registers.a;
   const uint8_t r = (n << 1) | lr35902->registers.f.c;
-  pbyte(lr35902->registers.a);
+  PBYTE(6, lr35902->registers.a);
   lr35902->registers.f.z = 0;
   lr35902->registers.f.n = 0;
   lr35902->registers.f.h = 0;
   lr35902->registers.f.c = (n & 0x80) != 0;
   lr35902->registers.a = r;
-  pbyte(lr35902->registers.a);
+  PBYTE(6, lr35902->registers.a);
   ++lr35902->registers.pc;
 }
 
 static void CP_d8 (struct cpu* const lr35902) {
-  puts("CP d8");
+  LOG(5, "CP d8\n");
   const uint8_t d8 = load_d8(lr35902);
-  printf("where d8 == ");
-  pbyte(d8);
+  LOG(6, "where d8 == ");
+  PBYTE(6, d8);
   const uint8_t result = lr35902->registers.a - d8;
   lr35902->registers.f.z = !result;
   lr35902->registers.f.n = 1;
@@ -683,7 +680,7 @@ static void CP_d8 (struct cpu* const lr35902) {
 }
 
 static void CP_DEREF_HL (struct cpu* const lr35902) {
-  puts("CP (HL)");
+  LOG(5, "CP (HL)\n");
   const uint8_t subtrahend = rb(lr35902->mmu, lr35902->registers.hl);
   const uint8_t result = lr35902->registers.a - subtrahend;
   lr35902->registers.f.z = !result;
@@ -695,35 +692,35 @@ static void CP_DEREF_HL (struct cpu* const lr35902) {
 }
 
 static void EI (struct cpu* const lr35902) {
-  puts("EI");
+  LOG(5, "EI\n");
   wb(lr35902->mmu, 0xFFFF, 0xFF); // ?
   lr35902->interrupts_enabled = 1;
   ++lr35902->registers.pc;
 }
 
 static void DI (struct cpu* const lr35902) {
-  puts("DI");
+  LOG(5, "DI\n");
   wb(lr35902->mmu, 0xFFFF, 0); // ?
   lr35902->interrupts_enabled = 0;
   ++lr35902->registers.pc;
 }
 
 static void OR_B (struct cpu* const lr35902) {
-  puts("OR B");
+  LOG(5, "OR B\n");
   lr35902->registers.a |= lr35902->registers.b;
   lr35902->registers.f.z = !lr35902->registers.a;
   ++lr35902->registers.pc;
 }
 
 static void OR_C (struct cpu* const lr35902) {
-  puts("OR C");
+  LOG(5, "OR C\n");
   lr35902->registers.a |= lr35902->registers.c;
   lr35902->registers.f.z = !lr35902->registers.a;
   ++lr35902->registers.pc;
 }
 
 static void AND_C (struct cpu* const lr35902) {
-  puts("AND C");
+  LOG(5, "AND C\n");
   lr35902->registers.a &= lr35902->registers.c;
   lr35902->registers.f.z = !lr35902->registers.a;
   lr35902->registers.f.n = 0;
@@ -733,10 +730,10 @@ static void AND_C (struct cpu* const lr35902) {
 }
 
 static void AND_d8 (struct cpu* const lr35902) {
-  puts("AND d8");
+  LOG(5, "AND d8\n");
   const uint8_t d8 = load_d8(lr35902);
-  printf("where d8 == ");
-  pbyte(d8);
+  LOG(6, "where d8 == ");
+  PBYTE(6, d8);
   lr35902->registers.a |= d8;
   lr35902->registers.f.z = !lr35902->registers.a;
   lr35902->registers.f.n = 0;
@@ -746,7 +743,7 @@ static void AND_d8 (struct cpu* const lr35902) {
 }
 
 static void CPL (struct cpu* const lr35902) {
-  puts("CPL");
+  LOG(5, "CPL\n");
   lr35902->registers.a = ~lr35902->registers.a;
   lr35902->registers.f.n = 1;
   lr35902->registers.f.h = 1;
@@ -774,10 +771,8 @@ static const instr opcodes [256] = {
 
 instr decode (const struct cpu* const cpu) {
   uint16_t pc = cpu->registers.pc;
-  /*printf("PC@");*/
-  /*pshort(pc);*/
   uint8_t opcode = rb(cpu->mmu, pc);
-  pbyte(opcode);
+  PBYTE(4, opcode);
   instr i = opcodes[opcode];
   // unknown instr
   assert(i != 0);
@@ -788,18 +783,18 @@ instr decode (const struct cpu* const cpu) {
 void cpu_power_up (struct cpu* const cpu) {
   // TODO: are these just the state after the bios?
   // looks like yes, except for f. Likely a bug, or possible errata?
-  pshort(cpu->registers.af);
-  pflags(cpu->registers.f);
-  /*pshort(cpu->registers.bc);*/
-  /*pshort(cpu->registers.de);*/
-  /*pshort(cpu->registers.hl);*/
-  /*pshort(cpu->registers.sp);*/
+  PSHORT(6, cpu->registers.af);
+  pflags(6, cpu->registers.f);
+  /*PSHORT(6, cpu->registers.bc);*/
+  /*PSHORT(6, cpu->registers.de);*/
+  /*PSHORT(6, cpu->registers.hl);*/
+  /*PSHORT(6, cpu->registers.sp);*/
   cpu->registers.af = 0x01B0;
   cpu->registers.bc = 0x0013;
   cpu->registers.de = 0x00D8;
   cpu->registers.hl = 0x014D;
   cpu->registers.sp = 0xFFFE;
-  /*pshort(cpu->registers.pc);*/
+  /*PSHORT(6, cpu->registers.pc);*/
   // TODO: likely set this if booted w/o bios
   /*cpu->registers.pc = 0x0100;*/
   cpu->interrupts_enabled = 1;
