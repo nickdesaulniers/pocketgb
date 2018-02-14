@@ -527,7 +527,6 @@ static void LD_DEREF_a16_A (struct cpu* const lr35902) {
 
 static void PUSH_BC (struct cpu* const lr35902) {
   LOG(5, "PUSH BC\n");
-
   lr35902->registers.sp -= 2;
   PSHORT(6, lr35902->registers.bc);
   store_d16(lr35902, lr35902->registers.sp, lr35902->registers.bc);
@@ -536,16 +535,22 @@ static void PUSH_BC (struct cpu* const lr35902) {
 
 static void PUSH_DE (struct cpu* const lr35902) {
   LOG(5, "PUSH DE\n");
-
   lr35902->registers.sp -= 2;
   PSHORT(6, lr35902->registers.de);
   store_d16(lr35902, lr35902->registers.sp, lr35902->registers.de);
   ++lr35902->registers.pc;
 }
 
+static void PUSH_HL (struct cpu* const lr35902) {
+  LOG(5, "PUSH HL\n");
+  lr35902->registers.sp -= 2;
+  PSHORT(6, lr35902->registers.hl);
+  store_d16(lr35902, lr35902->registers.sp, lr35902->registers.hl);
+  ++lr35902->registers.pc;
+}
+
 static void POP_BC (struct cpu* const lr35902) {
   LOG(5, "POP BC\n");
-
   PSHORT(6, lr35902->registers.bc);
   lr35902->registers.bc = rw(lr35902->mmu, lr35902->registers.sp);
   PSHORT(6, lr35902->registers.bc);
@@ -555,7 +560,6 @@ static void POP_BC (struct cpu* const lr35902) {
 
 static void POP_HL (struct cpu* const lr35902) {
   LOG(5, "POP HL\n");
-
   PSHORT(6, lr35902->registers.hl);
   lr35902->registers.hl = rw(lr35902->mmu, lr35902->registers.sp);
   PSHORT(6, lr35902->registers.hl);
@@ -765,7 +769,7 @@ static const instr opcodes [256] = {
   OR_B, OR_C, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, CP_DEREF_HL, 0, // Bx
   0, POP_BC, 0, JP_a16, 0, PUSH_BC, 0, 0, 0, RET, 0, handle_cb, 0, CALL_a16, 0, 0, // Cx
   0, 0, 0, 0, 0, PUSH_DE, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // Dx
-  LDH_DEREF_a8_A, POP_HL, LD_DEREF_C_A, 0, 0, 0, AND_d8, 0, 0, JP_DEREF_HL, LD_DEREF_a16_A, 0, 0, 0, 0, RST_28, // Ex
+  LDH_DEREF_a8_A, POP_HL, LD_DEREF_C_A, 0, 0, PUSH_HL, AND_d8, 0, 0, JP_DEREF_HL, LD_DEREF_a16_A, 0, 0, 0, 0, RST_28, // Ex
   LDH_A_DEREF_a8, 0, 0, DI, 0, 0, 0, 0, 0, 0, 0, EI, 0, 0, CP_d8, 0  // Fx
 };
 
@@ -775,6 +779,12 @@ instr decode (const struct cpu* const cpu) {
   PBYTE(4, opcode);
   instr i = opcodes[opcode];
   // unknown instr
+#ifndef NDEBUG
+  if (i == 0) {
+    fprintf(stderr, "Unknown opcode for byte " PRIbyte " @ " PRIshort "\n",
+        opcode, pc);
+  }
+#endif
   assert(i != 0);
   return i;
 }
