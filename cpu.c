@@ -233,6 +233,16 @@ static void XOR_C (struct cpu* const lr35902) {
   ++lr35902->registers.pc;
 }
 
+static void ADD_A (struct cpu* const lr35902) {
+  puts("ADD A");
+  lr35902->registers.a += lr35902->registers.a;
+  lr35902->registers.f.z = lr35902->registers.a == 0;
+  lr35902->registers.f.n = 0;
+  lr35902->registers.f.h = (lr35902->registers.a & 0x10) == 0x10;
+  lr35902->registers.f.c = (lr35902->registers.a & 0x80) != 0;
+  ++lr35902->registers.pc;
+}
+
 static void ADD_DEREF_HL (struct cpu* const lr35902) {
   puts("ADD (HL)");
   lr35902->registers.a += rb(lr35902->mmu, lr35902->registers.hl);
@@ -243,6 +253,15 @@ static void ADD_DEREF_HL (struct cpu* const lr35902) {
   ++lr35902->registers.pc;
 }
 
+static void ADD_HL_DE (struct cpu* const lr35902) {
+  puts("ADD HL,DE");
+  lr35902->registers.hl += lr35902->registers.de;
+  lr35902->registers.f.n = 0;
+  lr35902->registers.f.h = (lr35902->registers.hl & 0x10) == 0x10;
+  lr35902->registers.f.c = (lr35902->registers.hl & 0x80) != 0;
+  ++lr35902->registers.pc;
+}
+
 static void SUB_B (struct cpu* const lr35902) {
   puts("SUB B");
   lr35902->registers.a -= lr35902->registers.b;
@@ -250,12 +269,6 @@ static void SUB_B (struct cpu* const lr35902) {
   lr35902->registers.f.n = 1;
   lr35902->registers.f.h = (lr35902->registers.a & 0x10) == 0x10;
   lr35902->registers.f.c = (lr35902->registers.a & 0x80) != 0;
-  ++lr35902->registers.pc;
-}
-
-static void LD_C_A (struct cpu* const lr35902) {
-  puts("LD C,A");
-  lr35902->registers.c = lr35902->registers.a;
   ++lr35902->registers.pc;
 }
 
@@ -295,15 +308,39 @@ static void LD_B_A (struct cpu* const lr35902) {
   ++lr35902->registers.pc;
 }
 
-static void LD_H_A (struct cpu* const lr35902) {
-  puts("LD H,A");
-  lr35902->registers.h = lr35902->registers.a;
+static void LD_C_A (struct cpu* const lr35902) {
+  puts("LD C,A");
+  lr35902->registers.c = lr35902->registers.a;
   ++lr35902->registers.pc;
 }
 
 static void LD_D_A (struct cpu* const lr35902) {
   puts("LD D,A");
   lr35902->registers.d = lr35902->registers.a;
+  ++lr35902->registers.pc;
+}
+
+static void LD_D_DEREF_HL (struct cpu* const lr35902) {
+  puts("LD D,(HL)");
+  lr35902->registers.d = rb(lr35902->mmu, lr35902->registers.hl);
+  ++lr35902->registers.pc;
+}
+
+static void LD_E_A (struct cpu* const lr35902) {
+  puts("LD E,A");
+  lr35902->registers.e = lr35902->registers.a;
+  ++lr35902->registers.pc;
+}
+
+static void LD_E_DEREF_HL (struct cpu* const lr35902) {
+  puts("LD E,(HL)");
+  lr35902->registers.e = rb(lr35902->mmu, lr35902->registers.hl);
+  ++lr35902->registers.pc;
+}
+
+static void LD_H_A (struct cpu* const lr35902) {
+  puts("LD H,A");
+  lr35902->registers.h = lr35902->registers.a;
   ++lr35902->registers.pc;
 }
 
@@ -500,12 +537,31 @@ static void PUSH_BC (struct cpu* const lr35902) {
   ++lr35902->registers.pc;
 }
 
+static void PUSH_DE (struct cpu* const lr35902) {
+  puts("PUSH DE");
+
+  lr35902->registers.sp -= 2;
+  pshort(lr35902->registers.de);
+  store_d16(lr35902, lr35902->registers.sp, lr35902->registers.de);
+  ++lr35902->registers.pc;
+}
+
 static void POP_BC (struct cpu* const lr35902) {
   puts("POP BC");
 
   pshort(lr35902->registers.bc);
   lr35902->registers.bc = rw(lr35902->mmu, lr35902->registers.sp);
   pshort(lr35902->registers.bc);
+  lr35902->registers.sp += 2;
+  ++lr35902->registers.pc;
+}
+
+static void POP_HL (struct cpu* const lr35902) {
+  puts("POP HL");
+
+  pshort(lr35902->registers.hl);
+  lr35902->registers.hl = rw(lr35902->mmu, lr35902->registers.sp);
+  pshort(lr35902->registers.hl);
   lr35902->registers.sp += 2;
   ++lr35902->registers.pc;
 }
@@ -559,6 +615,13 @@ static void JP_a16 (struct cpu* const lr35902) {
   printf("jumping to ");
   pshort(a16);
   lr35902->registers.pc = a16;
+}
+
+static void JP_DEREF_HL (struct cpu* const lr35902) {
+  puts("JP (HL)");
+  lr35902->registers.pc = rw(lr35902->mmu, lr35902->registers.hl);
+  printf("jumping to ");
+  pshort(lr35902->registers.pc);
 }
 
 static void CALL_a16 (struct cpu* const lr35902) {
@@ -692,20 +755,20 @@ static void CPL (struct cpu* const lr35902) {
 
 static const instr opcodes [256] = {
   NOP, LD_BC_d16, 0, 0, INC_B, DEC_B, LD_B_d8, 0, 0, 0, 0, DEC_BC, INC_C, DEC_C, LD_C_d8, 0, // 0x
-  0, LD_DE_d16, 0, INC_DE, 0, DEC_D, LD_D_d8, RLA, JR_r8, 0, LD_A_DEREF_DE, 0, 0, DEC_E, LD_E_d8, 0, // 1x
+  0, LD_DE_d16, 0, INC_DE, 0, DEC_D, LD_D_d8, RLA, JR_r8, ADD_HL_DE, LD_A_DEREF_DE, 0, 0, DEC_E, LD_E_d8, 0, // 1x
   JR_NZ_r8, LD_HL_d16, LD_DEREF_HL_INC_A, INC_HL, INC_H, 0, 0, 0, JR_Z_r8, 0, LD_A_DEREF_HL_INC, 0, 0, 0, LD_L_d8, CPL, // 2x
   0, LD_SP_d16, LD_DEREF_HL_DEC_A, 0, 0, 0, LD_DEREF_HL_d8, 0, 0, 0, 0, 0, 0, DEC_A, LD_A_d8, 0, // 3x
   0, 0, 0, 0, 0, 0, 0, LD_B_A, 0, 0, 0, 0, 0, 0, 0, LD_C_A, // 4x
-  0, 0, 0, 0, 0, 0, 0, LD_D_A, 0, 0, 0, 0, 0, 0, 0, 0, // 5x
+  0, 0, 0, 0, 0, 0, LD_D_DEREF_HL, LD_D_A, 0, 0, 0, 0, 0, 0, LD_E_DEREF_HL, LD_E_A, // 5x
   0, 0, 0, 0, 0, 0, 0, LD_H_A, 0, 0, 0, 0, 0, 0, 0, 0, // 6x
   0, 0, 0, 0, 0, 0, 0, LD_DEREF_HL_A, LD_A_B, LD_A_C, 0, LD_A_E, LD_A_H, LD_A_L, 0, 0, // 7x
-  0, 0, 0, 0, 0, 0, ADD_DEREF_HL, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 8x
+  0, 0, 0, 0, 0, 0, ADD_DEREF_HL, ADD_A, 0, 0, 0, 0, 0, 0, 0, 0, // 8x
   SUB_B, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 9x
   0, AND_C, 0, 0, 0, 0, 0, 0, 0, XOR_C, 0, 0, 0, 0, 0, XOR_A, // Ax
   OR_B, OR_C, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, CP_DEREF_HL, 0, // Bx
   0, POP_BC, 0, JP_a16, 0, PUSH_BC, 0, 0, 0, RET, 0, handle_cb, 0, CALL_a16, 0, 0, // Cx
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // Dx
-  LDH_DEREF_a8_A, 0, LD_DEREF_C_A, 0, 0, 0, AND_d8, 0, 0, 0, LD_DEREF_a16_A, 0, 0, 0, 0, RST_28, // Ex
+  0, 0, 0, 0, 0, PUSH_DE, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // Dx
+  LDH_DEREF_a8_A, POP_HL, LD_DEREF_C_A, 0, 0, 0, AND_d8, 0, 0, JP_DEREF_HL, LD_DEREF_a16_A, 0, 0, 0, 0, RST_28, // Ex
   LDH_A_DEREF_a8, 0, 0, DI, 0, 0, 0, 0, 0, 0, 0, EI, 0, 0, CP_d8, 0  // Fx
 };
 
