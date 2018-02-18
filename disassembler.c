@@ -4,21 +4,14 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define PRIbyte "0x%02hhX"
-static void pbyte (const uint8_t b) {
-  printf(PRIbyte "\n", b);
-}
-#define PRIshort "0x%04hX"
-static void pshort (const uint16_t s) {
-  printf(PRIshort "\n", s);
-}
+#include "logging.h"
 
 // return 0 on error
 // truncates down to size_t, though fseek returns a long
 static size_t get_filesize (FILE* const f) {
   if (fseek(f, 0L, SEEK_END) != 0) return 0;
   const long fsize = ftell(f);
-  if (fsize > SIZE_MAX || fsize <= 0) return 0;
+  if (fsize <= 0 || (size_t)fsize > SIZE_MAX ) return 0;
   rewind(f);
   return fsize;
 }
@@ -85,7 +78,7 @@ enum __attribute__((packed)) Opcode {
   // inc/dec
   kINC,
   kDEC,
-  // rotates
+  // rotates (sometimes prefixed)
   kRL,
   kRLC,
   kRR,
@@ -112,11 +105,19 @@ enum __attribute__((packed)) Opcode {
   kCALL,
   kRET,
   kRST,
-  // prefix
-  kCB,
   // Interrupts
   kEI,
-  kDI
+  kDI,
+  // prefix
+  kCB,
+  // prefixed
+  kBIT,
+  kSLA,
+  kSRA,
+  kSRL,
+  kSWAP,
+  kRES,
+  kSET
 };
 
 static const char* const opcode_str_table [] = {
@@ -150,9 +151,16 @@ static const char* const opcode_str_table [] = {
   "CALL",
   "RET",
   "RST",
-  "CB",
   "EI",
-  "DI"
+  "DI",
+  "CB",
+  "BIT",
+  "SLA",
+  "SRA",
+  "SRL",
+  "SWAP",
+  "RES",
+  "SET"
 };
 
 static const enum Opcode decode_table [256] = {
@@ -206,8 +214,58 @@ static const enum Opcode decode_table [256] = {
   kLD, kLD, kLD, kEI, kInvalid, kInvalid, kCP, kRST
 };
 
+static const enum Opcode cb_decode_table [256] = {
+  // 0x
+  kRLC, kRLC, kRLC, kRLC, kRLC, kRLC, kRLC, kRLC,
+  kRRC, kRRC, kRRC, kRRC, kRRC, kRRC, kRRC, kRRC,
+  // 1x
+  kRL, kRL, kRL, kRL, kRL, kRL, kRL, kRL,
+  kRR, kRR, kRR, kRR, kRR, kRR, kRR, kRR,
+  // 2x
+  kSLA, kSLA, kSLA, kSLA, kSLA, kSLA, kSLA, kSLA,
+  kSRA, kSRA, kSRA, kSRA, kSRA, kSRA, kSRA, kSRA,
+  // 3x
+  kSWAP, kSWAP, kSWAP, kSWAP, kSWAP, kSWAP, kSWAP, kSWAP,
+  kSRL, kSRL, kSRL, kSRL, kSRL, kSRL, kSRL, kSRL,
+  // 4x
+  kBIT, kBIT, kBIT, kBIT, kBIT, kBIT, kBIT, kBIT,
+  kBIT, kBIT, kBIT, kBIT, kBIT, kBIT, kBIT, kBIT,
+  // 5x
+  kBIT, kBIT, kBIT, kBIT, kBIT, kBIT, kBIT, kBIT,
+  kBIT, kBIT, kBIT, kBIT, kBIT, kBIT, kBIT, kBIT,
+  // 6x
+  kBIT, kBIT, kBIT, kBIT, kBIT, kBIT, kBIT, kBIT,
+  kBIT, kBIT, kBIT, kBIT, kBIT, kBIT, kBIT, kBIT,
+  // 7x
+  kBIT, kBIT, kBIT, kBIT, kBIT, kBIT, kBIT, kBIT,
+  kBIT, kBIT, kBIT, kBIT, kBIT, kBIT, kBIT, kBIT,
+  // 8x
+  kRES, kRES, kRES, kRES, kRES, kRES, kRES, kRES,
+  kRES, kRES, kRES, kRES, kRES, kRES, kRES, kRES,
+  // 9x
+  kRES, kRES, kRES, kRES, kRES, kRES, kRES, kRES,
+  kRES, kRES, kRES, kRES, kRES, kRES, kRES, kRES,
+  // Ax
+  kRES, kRES, kRES, kRES, kRES, kRES, kRES, kRES,
+  kRES, kRES, kRES, kRES, kRES, kRES, kRES, kRES,
+  // Bx
+  kRES, kRES, kRES, kRES, kRES, kRES, kRES, kRES,
+  kRES, kRES, kRES, kRES, kRES, kRES, kRES, kRES,
+  // Cx
+  kSET, kSET, kSET, kSET, kSET, kSET, kSET, kSET,
+  kSET, kSET, kSET, kSET, kSET, kSET, kSET, kSET,
+  // Dx
+  kSET, kSET, kSET, kSET, kSET, kSET, kSET, kSET,
+  kSET, kSET, kSET, kSET, kSET, kSET, kSET, kSET,
+  // Ex
+  kSET, kSET, kSET, kSET, kSET, kSET, kSET, kSET,
+  kSET, kSET, kSET, kSET, kSET, kSET, kSET, kSET,
+  // Fx
+  kSET, kSET, kSET, kSET, kSET, kSET, kSET, kSET,
+  kSET, kSET, kSET, kSET, kSET, kSET, kSET, kSET
+};
 
-enum Operand {
+enum __attribute__((packed)) Operand {
   kNONE,
   // 8b
   kA,
@@ -234,6 +292,15 @@ enum Operand {
   kCOND_NZ,
   kCOND_C,
   kCOND_NC,
+  // literal bit positions, used by 0xCB instructions
+  kBIT_0,
+  kBIT_1,
+  kBIT_2,
+  kBIT_3,
+  kBIT_4,
+  kBIT_5,
+  kBIT_6,
+  kBIT_7,
   // Should not be assigned, just used to delimit operands that add to
   // instruction length.  Operands that appear after this enum add one to the
   // instruction length.
@@ -276,6 +343,14 @@ static const char* const operand_str_table [] = {
   "NZ",
   "C",
   "NC",
+  "0",
+  "1",
+  "2",
+  "3",
+  "4",
+  "5",
+  "6",
+  "7",
   // kINSTRUCTION_LENGTH_0
   "SHOULD NOT BE POSSIBLE",
   "d8",
@@ -392,18 +467,126 @@ static const enum Operand operand_1_table [256] = {
   kSP_r8, kHL, kDEREF_a16, kNONE, kNONE, kNONE, kNONE, kNONE
 };
 
+static const enum Operand cb_operand_0_table [256] = {
+  // 0x
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  // 1x
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  // 2x
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  // 3x
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  // 4x
+  kBIT_0, kBIT_0, kBIT_0, kBIT_0, kBIT_0, kBIT_0, kBIT_0, kBIT_0,
+  kBIT_1, kBIT_1, kBIT_1, kBIT_1, kBIT_1, kBIT_1, kBIT_1, kBIT_1,
+  // 5x
+  kBIT_2, kBIT_2, kBIT_2, kBIT_2, kBIT_2, kBIT_2, kBIT_2, kBIT_2,
+  kBIT_3, kBIT_3, kBIT_3, kBIT_3, kBIT_3, kBIT_3, kBIT_3, kBIT_3,
+  // 6x
+  kBIT_4, kBIT_4, kBIT_4, kBIT_4, kBIT_4, kBIT_4, kBIT_4, kBIT_4,
+  kBIT_5, kBIT_5, kBIT_5, kBIT_5, kBIT_5, kBIT_5, kBIT_5, kBIT_5,
+  // 7x
+  kBIT_6, kBIT_6, kBIT_6, kBIT_6, kBIT_6, kBIT_6, kBIT_6, kBIT_6,
+  kBIT_7, kBIT_7, kBIT_7, kBIT_7, kBIT_7, kBIT_7, kBIT_7, kBIT_7,
+  // 8x
+  kBIT_0, kBIT_0, kBIT_0, kBIT_0, kBIT_0, kBIT_0, kBIT_0, kBIT_0,
+  kBIT_1, kBIT_1, kBIT_1, kBIT_1, kBIT_1, kBIT_1, kBIT_1, kBIT_1,
+  // 9x
+  kBIT_2, kBIT_2, kBIT_2, kBIT_2, kBIT_2, kBIT_2, kBIT_2, kBIT_2,
+  kBIT_3, kBIT_3, kBIT_3, kBIT_3, kBIT_3, kBIT_3, kBIT_3, kBIT_3,
+  // Ax
+  kBIT_4, kBIT_4, kBIT_4, kBIT_4, kBIT_4, kBIT_4, kBIT_4, kBIT_4,
+  kBIT_5, kBIT_5, kBIT_5, kBIT_5, kBIT_5, kBIT_5, kBIT_5, kBIT_5,
+  // Bx
+  kBIT_6, kBIT_6, kBIT_6, kBIT_6, kBIT_6, kBIT_6, kBIT_6, kBIT_6,
+  kBIT_7, kBIT_7, kBIT_7, kBIT_7, kBIT_7, kBIT_7, kBIT_7, kBIT_7,
+  // Cx
+  kBIT_0, kBIT_0, kBIT_0, kBIT_0, kBIT_0, kBIT_0, kBIT_0, kBIT_0,
+  kBIT_1, kBIT_1, kBIT_1, kBIT_1, kBIT_1, kBIT_1, kBIT_1, kBIT_1,
+  // Dx
+  kBIT_2, kBIT_2, kBIT_2, kBIT_2, kBIT_2, kBIT_2, kBIT_2, kBIT_2,
+  kBIT_3, kBIT_3, kBIT_3, kBIT_3, kBIT_3, kBIT_3, kBIT_3, kBIT_3,
+  // Ex
+  kBIT_4, kBIT_4, kBIT_4, kBIT_4, kBIT_4, kBIT_4, kBIT_4, kBIT_4,
+  kBIT_5, kBIT_5, kBIT_5, kBIT_5, kBIT_5, kBIT_5, kBIT_5, kBIT_5,
+  // Fx
+  kBIT_6, kBIT_6, kBIT_6, kBIT_6, kBIT_6, kBIT_6, kBIT_6, kBIT_6,
+  kBIT_7, kBIT_7, kBIT_7, kBIT_7, kBIT_7, kBIT_7, kBIT_7, kBIT_7
+};
+
+static const enum Operand cb_operand_1_table [256] = {
+  // 0x
+  kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE,
+  kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE,
+  // 1x
+  kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE,
+  kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE,
+  // 2x
+  kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE,
+  kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE,
+  // 3x
+  kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE,
+  kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE,
+  // 4x
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  // 5x
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  // 6x
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  // 7x
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  // 8x
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  // 9x
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  // Ax
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  // Bx
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  // Cx
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  // Dx
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  // Ex
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  // Fx
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA
+};
+
 struct instruction {
   // where in the rom we found this
   uint16_t rom_addr;
-  // the byte values you'd see in hexdump
-  /*uint8_t raw_values [3];*/
   enum Opcode opcode;
   enum Operand operands [2];
-  /*enum CbOpcode cb_opcode;*/
   // length in bytes for this instruction
   uint8_t length;
-  /*char* name;*/
 };
+
+// the pc should be pointing at prefix (0xCB) + 1
+void decode_cb (const struct rom* const rom, const uint16_t pc,
+    struct instruction* const instruction) {
+  const uint8_t first_byte = rom->data[pc];
+  instruction->opcode = cb_decode_table[first_byte];
+  instruction->operands[0] = cb_operand_0_table[first_byte];
+  instruction->operands[1] = cb_operand_1_table[first_byte];
+  instruction->length = 2;
+}
 
 void decode_instruction (const struct rom* const rom, const uint16_t pc,
     struct instruction* const instruction) {
@@ -411,38 +594,52 @@ void decode_instruction (const struct rom* const rom, const uint16_t pc,
   instruction->rom_addr = pc;
   const uint8_t first_byte = rom->data[pc];
   instruction->opcode = decode_table[first_byte];
-  // Not sure we ever want assert here. Parsing should not fail because this
-  // may be static data that we're trying to interpret as an instruction.
-  /*assert(instruction->opcode != kInvalid);*/
+#ifndef NDEBUG
   if (instruction->opcode == kInvalid) {
     fprintf(stderr, "Looks like were trying to decode data as instructions,\n"
         "rest of disassembly may be invalid from this point.\n WARN: "
         PRIshort "\n", pc);
+    instruction->length = 1;
+  } else
+#endif
+    if (instruction->opcode == kCB) {
+    decode_cb(rom, pc + 1, instruction);
+  } else {
+    instruction->operands[0] = operand_0_table[first_byte];
+    instruction->operands[1] = operand_1_table[first_byte];
+    // calculate instruction length
+    const uint8_t len = 1 +
+      (instruction->operands[0] > kINSTRUCTION_LENGTH_0) +
+      (instruction->operands[0] > kINSTRUCTION_LENGTH_1) +
+      (instruction->operands[1] > kINSTRUCTION_LENGTH_0) +
+      (instruction->operands[1] > kINSTRUCTION_LENGTH_1);
+    instruction->length = len;
   }
-  instruction->operands[0] = operand_0_table[first_byte];
-  instruction->operands[1] = operand_1_table[first_byte];
-  // calculate instruction length
-  const uint8_t len = 1 +
-    (instruction->opcode == kCB) +
-    (instruction->operands[0] > kINSTRUCTION_LENGTH_0) +
-    (instruction->operands[0] > kINSTRUCTION_LENGTH_1) +
-    (instruction->operands[1] > kINSTRUCTION_LENGTH_0) +
-    (instruction->operands[1] > kINSTRUCTION_LENGTH_1);
-  assert(len > 0);
-  assert(len < 4);
-  instruction->length = len;
 }
 
 void print_instruction (const struct instruction* const instruction) {
+  const enum Opcode op = instruction->opcode;
   const enum Operand op0 = instruction->operands[0];
+  const enum Operand op1 = instruction->operands[1];
   assert(op0 != kINSTRUCTION_LENGTH_0);
   assert(op0 != kINSTRUCTION_LENGTH_1);
+  assert(op1 != kINSTRUCTION_LENGTH_0);
+  assert(op1 != kINSTRUCTION_LENGTH_1);
+
+// intentionally keep this if NDEBUG is used, otherwise check during decode in
+// order to get pc.
+#ifdef NDEBUG
+  if (op == kInvalid) {
+    fprintf(stderr, "Looks like were trying to decode data as instructions,\n"
+        "rest of disassembly may be invalid from this point.\n");
+  }
+#endif
 
   printf(PRIshort ": %s %s %s: %d\n",
       instruction->rom_addr,
-      opcode_str_table[instruction->opcode],
-      operand_str_table[instruction->operands[0]],
-      operand_str_table[instruction->operands[1]],
+      opcode_str_table[op],
+      operand_str_table[op0],
+      operand_str_table[op1],
       instruction->length);
 }
 
@@ -452,6 +649,8 @@ int disassemble (const struct rom* const rom) {
   while (pc < rom->size) {
     decode_instruction(rom, pc, &instruction);
     print_instruction(&instruction);
+    assert(instruction.length > 0);
+    assert(instruction.length < 4);
     pc += instruction.length;
   }
   return 0;

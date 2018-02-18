@@ -20,5 +20,8 @@ FLAGS = \
 default:
 	cc $(SOURCES) $(FLAGS) -o pocketgb
 
+disassembler: disassembler.c
+	cc disassembler.c $(FLAGS) -o disassembler
+
 clean:
 	rm -f pocketgb *.o
