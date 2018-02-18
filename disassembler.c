@@ -570,8 +570,6 @@ static const enum Operand cb_operand_1_table [256] = {
 };
 
 struct instruction {
-  // where in the rom we found this
-  uint16_t rom_addr;
   enum Opcode opcode;
   enum Operand operands [2];
   // length in bytes for this instruction
@@ -591,7 +589,6 @@ void decode_cb (const struct rom* const rom, const uint16_t pc,
 void decode_instruction (const struct rom* const rom, const uint16_t pc,
     struct instruction* const instruction) {
   memset(instruction, 0, sizeof(*instruction));
-  instruction->rom_addr = pc;
   const uint8_t first_byte = rom->data[pc];
   instruction->opcode = decode_table[first_byte];
 #ifndef NDEBUG
@@ -617,6 +614,7 @@ void decode_instruction (const struct rom* const rom, const uint16_t pc,
   }
 }
 
+// TODO: maybe make this some kind of ToString() like fn?
 void print_instruction (const struct instruction* const instruction) {
   const enum Opcode op = instruction->opcode;
   const enum Operand op0 = instruction->operands[0];
@@ -635,8 +633,7 @@ void print_instruction (const struct instruction* const instruction) {
   }
 #endif
 
-  printf(PRIshort ": %s %s %s: %d\n",
-      instruction->rom_addr,
+  printf("%s %s %s: %d\n",
       opcode_str_table[op],
       operand_str_table[op0],
       operand_str_table[op1],
@@ -648,6 +645,7 @@ int disassemble (const struct rom* const rom) {
   struct instruction instruction;
   while (pc < rom->size) {
     decode_instruction(rom, pc, &instruction);
+    printf(PRIshort ": ", pc);
     print_instruction(&instruction);
     assert(instruction.length > 0);
     assert(instruction.length < 4);
