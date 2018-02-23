@@ -165,6 +165,57 @@ static const char* const opcode_str_table [] = {
   "SET"
 };
 
+static const enum Opcode cb_decode_table [256] = {
+  // 0x
+  kRLC, kRLC, kRLC, kRLC, kRLC, kRLC, kRLC, kRLC,
+  kRRC, kRRC, kRRC, kRRC, kRRC, kRRC, kRRC, kRRC,
+  // 1x
+  kRL, kRL, kRL, kRL, kRL, kRL, kRL, kRL,
+  kRR, kRR, kRR, kRR, kRR, kRR, kRR, kRR,
+  // 2x
+  kSLA, kSLA, kSLA, kSLA, kSLA, kSLA, kSLA, kSLA,
+  kSRA, kSRA, kSRA, kSRA, kSRA, kSRA, kSRA, kSRA,
+  // 3x
+  kSWAP, kSWAP, kSWAP, kSWAP, kSWAP, kSWAP, kSWAP, kSWAP,
+  kSRL, kSRL, kSRL, kSRL, kSRL, kSRL, kSRL, kSRL,
+  // 4x
+  kBIT, kBIT, kBIT, kBIT, kBIT, kBIT, kBIT, kBIT,
+  kBIT, kBIT, kBIT, kBIT, kBIT, kBIT, kBIT, kBIT,
+  // 5x
+  kBIT, kBIT, kBIT, kBIT, kBIT, kBIT, kBIT, kBIT,
+  kBIT, kBIT, kBIT, kBIT, kBIT, kBIT, kBIT, kBIT,
+  // 6x
+  kBIT, kBIT, kBIT, kBIT, kBIT, kBIT, kBIT, kBIT,
+  kBIT, kBIT, kBIT, kBIT, kBIT, kBIT, kBIT, kBIT,
+  // 7x
+  kBIT, kBIT, kBIT, kBIT, kBIT, kBIT, kBIT, kBIT,
+  kBIT, kBIT, kBIT, kBIT, kBIT, kBIT, kBIT, kBIT,
+  // 8x
+  kRES, kRES, kRES, kRES, kRES, kRES, kRES, kRES,
+  kRES, kRES, kRES, kRES, kRES, kRES, kRES, kRES,
+  // 9x
+  kRES, kRES, kRES, kRES, kRES, kRES, kRES, kRES,
+  kRES, kRES, kRES, kRES, kRES, kRES, kRES, kRES,
+  // Ax
+  kRES, kRES, kRES, kRES, kRES, kRES, kRES, kRES,
+  kRES, kRES, kRES, kRES, kRES, kRES, kRES, kRES,
+  // Bx
+  kRES, kRES, kRES, kRES, kRES, kRES, kRES, kRES,
+  kRES, kRES, kRES, kRES, kRES, kRES, kRES, kRES,
+  // Cx
+  kSET, kSET, kSET, kSET, kSET, kSET, kSET, kSET,
+  kSET, kSET, kSET, kSET, kSET, kSET, kSET, kSET,
+  // Dx
+  kSET, kSET, kSET, kSET, kSET, kSET, kSET, kSET,
+  kSET, kSET, kSET, kSET, kSET, kSET, kSET, kSET,
+  // Ex
+  kSET, kSET, kSET, kSET, kSET, kSET, kSET, kSET,
+  kSET, kSET, kSET, kSET, kSET, kSET, kSET, kSET,
+  // Fx
+  kSET, kSET, kSET, kSET, kSET, kSET, kSET, kSET,
+  kSET, kSET, kSET, kSET, kSET, kSET, kSET, kSET
+};
+
 enum __attribute__((packed)) Operand {
   kNONE,
   // 8b
@@ -262,6 +313,108 @@ static const char* const operand_str_table [] = {
   "d16",
   "a16",
   "(a16)"
+};
+
+static const enum Operand cb_operand_0_table [256] = {
+  // 0x
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  // 1x
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  // 2x
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  // 3x
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  // 4x
+  kBIT_0, kBIT_0, kBIT_0, kBIT_0, kBIT_0, kBIT_0, kBIT_0, kBIT_0,
+  kBIT_1, kBIT_1, kBIT_1, kBIT_1, kBIT_1, kBIT_1, kBIT_1, kBIT_1,
+  // 5x
+  kBIT_2, kBIT_2, kBIT_2, kBIT_2, kBIT_2, kBIT_2, kBIT_2, kBIT_2,
+  kBIT_3, kBIT_3, kBIT_3, kBIT_3, kBIT_3, kBIT_3, kBIT_3, kBIT_3,
+  // 6x
+  kBIT_4, kBIT_4, kBIT_4, kBIT_4, kBIT_4, kBIT_4, kBIT_4, kBIT_4,
+  kBIT_5, kBIT_5, kBIT_5, kBIT_5, kBIT_5, kBIT_5, kBIT_5, kBIT_5,
+  // 7x
+  kBIT_6, kBIT_6, kBIT_6, kBIT_6, kBIT_6, kBIT_6, kBIT_6, kBIT_6,
+  kBIT_7, kBIT_7, kBIT_7, kBIT_7, kBIT_7, kBIT_7, kBIT_7, kBIT_7,
+  // 8x
+  kBIT_0, kBIT_0, kBIT_0, kBIT_0, kBIT_0, kBIT_0, kBIT_0, kBIT_0,
+  kBIT_1, kBIT_1, kBIT_1, kBIT_1, kBIT_1, kBIT_1, kBIT_1, kBIT_1,
+  // 9x
+  kBIT_2, kBIT_2, kBIT_2, kBIT_2, kBIT_2, kBIT_2, kBIT_2, kBIT_2,
+  kBIT_3, kBIT_3, kBIT_3, kBIT_3, kBIT_3, kBIT_3, kBIT_3, kBIT_3,
+  // Ax
+  kBIT_4, kBIT_4, kBIT_4, kBIT_4, kBIT_4, kBIT_4, kBIT_4, kBIT_4,
+  kBIT_5, kBIT_5, kBIT_5, kBIT_5, kBIT_5, kBIT_5, kBIT_5, kBIT_5,
+  // Bx
+  kBIT_6, kBIT_6, kBIT_6, kBIT_6, kBIT_6, kBIT_6, kBIT_6, kBIT_6,
+  kBIT_7, kBIT_7, kBIT_7, kBIT_7, kBIT_7, kBIT_7, kBIT_7, kBIT_7,
+  // Cx
+  kBIT_0, kBIT_0, kBIT_0, kBIT_0, kBIT_0, kBIT_0, kBIT_0, kBIT_0,
+  kBIT_1, kBIT_1, kBIT_1, kBIT_1, kBIT_1, kBIT_1, kBIT_1, kBIT_1,
+  // Dx
+  kBIT_2, kBIT_2, kBIT_2, kBIT_2, kBIT_2, kBIT_2, kBIT_2, kBIT_2,
+  kBIT_3, kBIT_3, kBIT_3, kBIT_3, kBIT_3, kBIT_3, kBIT_3, kBIT_3,
+  // Ex
+  kBIT_4, kBIT_4, kBIT_4, kBIT_4, kBIT_4, kBIT_4, kBIT_4, kBIT_4,
+  kBIT_5, kBIT_5, kBIT_5, kBIT_5, kBIT_5, kBIT_5, kBIT_5, kBIT_5,
+  // Fx
+  kBIT_6, kBIT_6, kBIT_6, kBIT_6, kBIT_6, kBIT_6, kBIT_6, kBIT_6,
+  kBIT_7, kBIT_7, kBIT_7, kBIT_7, kBIT_7, kBIT_7, kBIT_7, kBIT_7
+};
+
+static const enum Operand cb_operand_1_table [256] = {
+  // 0x
+  kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE,
+  kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE,
+  // 1x
+  kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE,
+  kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE,
+  // 2x
+  kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE,
+  kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE,
+  // 3x
+  kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE,
+  kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE,
+  // 4x
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  // 5x
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  // 6x
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  // 7x
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  // 8x
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  // 9x
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  // Ax
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  // Bx
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  // Cx
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  // Dx
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  // Ex
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  // Fx
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+  kB, kC, kD, kE, kH, kL, kDEREF_HL, kA
 };
 
 struct instruction {
@@ -436,178 +589,21 @@ static const struct instruction instruction_table [256] = {
   { kCP, { kd8, kNONE }, 2 }, { kRST, { kNONE, kNONE }, 1 },
 };
 
-static const struct instruction cb_instruction_table [256] = {
-  // 0x
-  { kRLC, { kB, kNONE }, 2 }, { kRLC, { kC, kNONE }, 2 },
-  { kRLC, { kD, kNONE }, 2 }, { kRLC, { kE, kNONE }, 2 },
-  { kRLC, { kH, kNONE }, 2 }, { kRLC, { kL, kNONE }, 2 },
-  { kRLC, { kDEREF_HL, kNONE }, 2 }, { kRLC, { kA, kNONE }, 2 },
-
-  { kRRC, { kB, kNONE }, 2 }, { kRRC, { kC, kNONE }, 2 },
-  { kRRC, { kD, kNONE }, 2 }, { kRRC, { kE, kNONE }, 2 },
-  { kRRC, { kH, kNONE }, 2 }, { kRRC, { kL, kNONE }, 2 },
-  { kRRC, { kDEREF_HL, kNONE }, 2 }, { kRRC, { kA, kNONE }, 2 },
-  // 1x
-  { kRL, { kB, kNONE }, 2 }, { kRL, { kC, kNONE }, 2 },
-  { kRL, { kD, kNONE }, 2 }, { kRL, { kE, kNONE }, 2 },
-  { kRL, { kH, kNONE }, 2 }, { kRL, { kL, kNONE }, 2 },
-  { kRL, { kDEREF_HL, kNONE }, 2 }, { kRL, { kA, kNONE }, 2 },
-
-  { kRR, { kB, kNONE }, 2 }, { kRR, { kC, kNONE }, 2 },
-  { kRR, { kD, kNONE }, 2 }, { kRR, { kE, kNONE }, 2 },
-  { kRR, { kH, kNONE }, 2 }, { kRR, { kL, kNONE }, 2 },
-  { kRR, { kDEREF_HL, kNONE }, 2 }, { kRR, { kA, kNONE }, 2 },
-  // 2x
-  { kSLA, { kB, kNONE }, 2 }, { kSLA, { kC, kNONE }, 2 },
-  { kSLA, { kD, kNONE }, 2 }, { kSLA, { kE, kNONE }, 2 },
-  { kSLA, { kH, kNONE }, 2 }, { kSLA, { kL, kNONE }, 2 },
-  { kSLA, { kDEREF_HL, kNONE }, 2 }, { kSLA, { kA, kNONE }, 2 },
-
-  { kSRA, { kB, kNONE }, 2 }, { kSRA, { kC, kNONE }, 2 },
-  { kSRA, { kD, kNONE }, 2 }, { kSRA, { kE, kNONE }, 2 },
-  { kSRA, { kH, kNONE }, 2 }, { kSRA, { kL, kNONE }, 2 },
-  { kSRA, { kDEREF_HL, kNONE }, 2 }, { kSRA, { kA, kNONE }, 2 },
-  // 3x
-  { kSWAP, { kB, kNONE }, 2 }, { kSWAP, { kC, kNONE }, 2 },
-  { kSWAP, { kD, kNONE }, 2 }, { kSWAP, { kE, kNONE }, 2 },
-  { kSWAP, { kH, kNONE }, 2 }, { kSWAP, { kL, kNONE }, 2 },
-  { kSWAP, { kDEREF_HL, kNONE }, 2 }, { kSWAP, { kA, kNONE }, 2 },
-
-  { kSRL, { kB, kNONE }, 2 }, { kSRL, { kC, kNONE }, 2 },
-  { kSRL, { kD, kNONE }, 2 }, { kSRL, { kE, kNONE }, 2 },
-  { kSRL, { kH, kNONE }, 2 }, { kSRL, { kL, kNONE }, 2 },
-  { kSRL, { kDEREF_HL, kNONE }, 2 }, { kSRL, { kA, kNONE }, 2 },
-  // 4x
-  { kBIT, { kBIT_0, kB }, 2 }, { kBIT, { kBIT_0, kC }, 2 },
-  { kBIT, { kBIT_0, kD }, 2 }, { kBIT, { kBIT_0, kE }, 2 },
-  { kBIT, { kBIT_0, kH }, 2 }, { kBIT, { kBIT_0, kL }, 2 },
-  { kBIT, { kBIT_0, kDEREF_HL }, 2 }, { kBIT, { kBIT_0, kA }, 2 },
-
-  { kBIT, { kBIT_1, kB }, 2 }, { kBIT, { kBIT_1, kC }, 2 },
-  { kBIT, { kBIT_1, kD }, 2 }, { kBIT, { kBIT_1, kE }, 2 },
-  { kBIT, { kBIT_1, kH }, 2 }, { kBIT, { kBIT_1, kL }, 2 },
-  { kBIT, { kBIT_1, kDEREF_HL }, 2 }, { kBIT, { kBIT_1, kA }, 2 },
-  // 5x
-  { kBIT, { kBIT_2, kB }, 2 }, { kBIT, { kBIT_2, kC }, 2 },
-  { kBIT, { kBIT_2, kD }, 2 }, { kBIT, { kBIT_2, kE }, 2 },
-  { kBIT, { kBIT_2, kH }, 2 }, { kBIT, { kBIT_2, kL }, 2 },
-  { kBIT, { kBIT_2, kDEREF_HL }, 2 }, { kBIT, { kBIT_2, kA }, 2 },
-
-  { kBIT, { kBIT_3, kB }, 2 }, { kBIT, { kBIT_3, kC }, 2 },
-  { kBIT, { kBIT_3, kD }, 2 }, { kBIT, { kBIT_3, kE }, 2 },
-  { kBIT, { kBIT_3, kH }, 2 }, { kBIT, { kBIT_3, kL }, 2 },
-  { kBIT, { kBIT_3, kDEREF_HL }, 2 }, { kBIT, { kBIT_3, kA }, 2 },
-  // 6x
-  { kBIT, { kBIT_4, kB }, 2 }, { kBIT, { kBIT_4, kC }, 2 },
-  { kBIT, { kBIT_4, kD }, 2 }, { kBIT, { kBIT_4, kE }, 2 },
-  { kBIT, { kBIT_4, kH }, 2 }, { kBIT, { kBIT_4, kL }, 2 },
-  { kBIT, { kBIT_4, kDEREF_HL }, 2 }, { kBIT, { kBIT_4, kA }, 2 },
-
-  { kBIT, { kBIT_5, kB }, 2 }, { kBIT, { kBIT_5, kC }, 2 },
-  { kBIT, { kBIT_5, kD }, 2 }, { kBIT, { kBIT_5, kE }, 2 },
-  { kBIT, { kBIT_5, kH }, 2 }, { kBIT, { kBIT_5, kL }, 2 },
-  { kBIT, { kBIT_5, kDEREF_HL }, 2 }, { kBIT, { kBIT_5, kA }, 2 },
-  // 7x
-  { kBIT, { kBIT_6, kB }, 2 }, { kBIT, { kBIT_6, kC }, 2 },
-  { kBIT, { kBIT_6, kD }, 2 }, { kBIT, { kBIT_6, kE }, 2 },
-  { kBIT, { kBIT_6, kH }, 2 }, { kBIT, { kBIT_6, kL }, 2 },
-  { kBIT, { kBIT_6, kDEREF_HL }, 2 }, { kBIT, { kBIT_6, kA }, 2 },
-
-  { kBIT, { kBIT_7, kB }, 2 }, { kBIT, { kBIT_7, kC }, 2 },
-  { kBIT, { kBIT_7, kD }, 2 }, { kBIT, { kBIT_7, kE }, 2 },
-  { kBIT, { kBIT_7, kH }, 2 }, { kBIT, { kBIT_7, kL }, 2 },
-  { kBIT, { kBIT_7, kDEREF_HL }, 2 }, { kBIT, { kBIT_7, kA }, 2 },
-  // 8x
-  { kRES, { kBIT_0, kB }, 2 }, { kRES, { kBIT_0, kC }, 2 },
-  { kRES, { kBIT_0, kD }, 2 }, { kRES, { kBIT_0, kE }, 2 },
-  { kRES, { kBIT_0, kH }, 2 }, { kRES, { kBIT_0, kL }, 2 },
-  { kRES, { kBIT_0, kDEREF_HL }, 2 }, { kRES, { kBIT_0, kA }, 2 },
-
-  { kRES, { kBIT_1, kB }, 2 }, { kRES, { kBIT_1, kC }, 2 },
-  { kRES, { kBIT_1, kD }, 2 }, { kRES, { kBIT_1, kE }, 2 },
-  { kRES, { kBIT_1, kH }, 2 }, { kRES, { kBIT_1, kL }, 2 },
-  { kRES, { kBIT_1, kDEREF_HL }, 2 }, { kRES, { kBIT_1, kA }, 2 },
-  // 9x
-  { kRES, { kBIT_2, kB }, 2 }, { kRES, { kBIT_2, kC }, 2 },
-  { kRES, { kBIT_2, kD }, 2 }, { kRES, { kBIT_2, kE }, 2 },
-  { kRES, { kBIT_2, kH }, 2 }, { kRES, { kBIT_2, kL }, 2 },
-  { kRES, { kBIT_2, kDEREF_HL }, 2 }, { kRES, { kBIT_2, kA }, 2 },
-
-  { kRES, { kBIT_3, kB }, 2 }, { kRES, { kBIT_3, kC }, 2 },
-  { kRES, { kBIT_3, kD }, 2 }, { kRES, { kBIT_3, kE }, 2 },
-  { kRES, { kBIT_3, kH }, 2 }, { kRES, { kBIT_3, kL }, 2 },
-  { kRES, { kBIT_3, kDEREF_HL }, 2 }, { kRES, { kBIT_3, kA }, 2 },
-  // Ax
-  { kRES, { kBIT_4, kB }, 2 }, { kRES, { kBIT_4, kC }, 2 },
-  { kRES, { kBIT_4, kD }, 2 }, { kRES, { kBIT_4, kE }, 2 },
-  { kRES, { kBIT_4, kH }, 2 }, { kRES, { kBIT_4, kL }, 2 },
-  { kRES, { kBIT_4, kDEREF_HL }, 2 }, { kRES, { kBIT_4, kA }, 2 },
-
-  { kRES, { kBIT_5, kB }, 2 }, { kRES, { kBIT_5, kC }, 2 },
-  { kRES, { kBIT_5, kD }, 2 }, { kRES, { kBIT_5, kE }, 2 },
-  { kRES, { kBIT_5, kH }, 2 }, { kRES, { kBIT_5, kL }, 2 },
-  { kRES, { kBIT_5, kDEREF_HL }, 2 }, { kRES, { kBIT_5, kA }, 2 },
-  // Bx
-  { kRES, { kBIT_6, kB }, 2 }, { kRES, { kBIT_6, kC }, 2 },
-  { kRES, { kBIT_6, kD }, 2 }, { kRES, { kBIT_6, kE }, 2 },
-  { kRES, { kBIT_6, kH }, 2 }, { kRES, { kBIT_6, kL }, 2 },
-  { kRES, { kBIT_6, kDEREF_HL }, 2 }, { kRES, { kBIT_6, kA }, 2 },
-
-  { kRES, { kBIT_7, kB }, 2 }, { kRES, { kBIT_7, kC }, 2 },
-  { kRES, { kBIT_7, kD }, 2 }, { kRES, { kBIT_7, kE }, 2 },
-  { kRES, { kBIT_7, kH }, 2 }, { kRES, { kBIT_7, kL }, 2 },
-  { kRES, { kBIT_7, kDEREF_HL }, 2 }, { kRES, { kBIT_7, kA }, 2 },
-  // Cx
-  { kSET, { kBIT_0, kB }, 2 }, { kSET, { kBIT_0, kC }, 2 },
-  { kSET, { kBIT_0, kD }, 2 }, { kSET, { kBIT_0, kE }, 2 },
-  { kSET, { kBIT_0, kH }, 2 }, { kSET, { kBIT_0, kL }, 2 },
-  { kSET, { kBIT_0, kDEREF_HL }, 2 }, { kSET, { kBIT_0, kA }, 2 },
-
-  { kSET, { kBIT_1, kB }, 2 }, { kSET, { kBIT_1, kC }, 2 },
-  { kSET, { kBIT_1, kD }, 2 }, { kSET, { kBIT_1, kE }, 2 },
-  { kSET, { kBIT_1, kH }, 2 }, { kSET, { kBIT_1, kL }, 2 },
-  { kSET, { kBIT_1, kDEREF_HL }, 2 }, { kSET, { kBIT_1, kA }, 2 },
-  // Dx
-  { kSET, { kBIT_2, kB }, 2 }, { kSET, { kBIT_2, kC }, 2 },
-  { kSET, { kBIT_2, kD }, 2 }, { kSET, { kBIT_2, kE }, 2 },
-  { kSET, { kBIT_2, kH }, 2 }, { kSET, { kBIT_2, kL }, 2 },
-  { kSET, { kBIT_2, kDEREF_HL }, 2 }, { kSET, { kBIT_2, kA }, 2 },
-
-  { kSET, { kBIT_3, kB }, 2 }, { kSET, { kBIT_3, kC }, 2 },
-  { kSET, { kBIT_3, kD }, 2 }, { kSET, { kBIT_3, kE }, 2 },
-  { kSET, { kBIT_3, kH }, 2 }, { kSET, { kBIT_3, kL }, 2 },
-  { kSET, { kBIT_3, kDEREF_HL }, 2 }, { kSET, { kBIT_3, kA }, 2 },
-  // Ex
-  { kSET, { kBIT_4, kB }, 2 }, { kSET, { kBIT_4, kC }, 2 },
-  { kSET, { kBIT_4, kD }, 2 }, { kSET, { kBIT_4, kE }, 2 },
-  { kSET, { kBIT_4, kH }, 2 }, { kSET, { kBIT_4, kL }, 2 },
-  { kSET, { kBIT_4, kDEREF_HL }, 2 }, { kSET, { kBIT_4, kA }, 2 },
-
-  { kSET, { kBIT_5, kB }, 2 }, { kSET, { kBIT_5, kC }, 2 },
-  { kSET, { kBIT_5, kD }, 2 }, { kSET, { kBIT_5, kE }, 2 },
-  { kSET, { kBIT_5, kH }, 2 }, { kSET, { kBIT_5, kL }, 2 },
-  { kSET, { kBIT_5, kDEREF_HL }, 2 }, { kSET, { kBIT_5, kA }, 2 },
-  // Fx
-  { kSET, { kBIT_6, kB }, 2 }, { kSET, { kBIT_6, kC }, 2 },
-  { kSET, { kBIT_6, kD }, 2 }, { kSET, { kBIT_6, kE }, 2 },
-  { kSET, { kBIT_6, kH }, 2 }, { kSET, { kBIT_6, kL }, 2 },
-  { kSET, { kBIT_6, kDEREF_HL }, 2 }, { kSET, { kBIT_6, kA }, 2 },
-
-  { kSET, { kBIT_7, kB }, 2 }, { kSET, { kBIT_7, kC }, 2 },
-  { kSET, { kBIT_7, kD }, 2 }, { kSET, { kBIT_7, kE }, 2 },
-  { kSET, { kBIT_7, kH }, 2 }, { kSET, { kBIT_7, kL }, 2 },
-  { kSET, { kBIT_7, kDEREF_HL }, 2 }, { kSET, { kBIT_7, kA }, 2 },
-};
+// the pc should be pointing at prefix (0xCB) + 1
+void decode_cb (const struct rom* const rom, const uint16_t pc,
+    struct instruction* const instruction) {
+  const uint8_t first_byte = rom->data[pc];
+  instruction->opcode = cb_decode_table[first_byte];
+  instruction->operands[0] = cb_operand_0_table[first_byte];
+  instruction->operands[1] = cb_operand_1_table[first_byte];
+  instruction->length = 2;
+}
 
 void decode_instruction (const struct rom* const rom, const uint16_t pc,
     const struct instruction** const instruction) {
   const uint8_t first_byte = rom->data[pc];
-  if (first_byte == 0xCB) {
-    const uint8_t second_byte = rom->data[pc + 1];
-    *instruction = &cb_instruction_table[second_byte];
-  } else {
-    *instruction = &instruction_table[first_byte];
-  }
+  *instruction = &instruction_table[first_byte];
+  /*if (instruction->opcode == kCB) {*/
 #ifndef NDEBUG
   if ((*instruction)->opcode == kInvalid) {
     fprintf(stderr, "Looks like were trying to decode data as instructions,\n"
