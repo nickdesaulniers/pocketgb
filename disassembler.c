@@ -301,18 +301,23 @@ enum __attribute__((packed)) Operand {
   kBIT_5,
   kBIT_6,
   kBIT_7,
-  // Should not be assigned, just used to delimit operands that add to
-  // instruction length.  Operands that appear after this enum add one to the
-  // instruction length.
+  // literals used by RST instructions
+  kLITERAL_0x00,
+  kLITERAL_0x08,
+  kLITERAL_0x10,
+  kLITERAL_0x18,
+  kLITERAL_0x20,
+  kLITERAL_0x28,
+  kLITERAL_0x30,
+  kLITERAL_0x38,
+  // Operands that appear after this enum add one to the instruction length.
   kINSTRUCTION_LENGTH_0,
   // Literals
   kd8,
   kr8,
   kSP_r8,
   kDEREF_a8,
-  // Should not be assigned, just used to delimit operands that add to
-  // instruction length.  Operands that appear after this enum add two to the
-  // instruction length.
+  // Operands that appear after this enum add two to the instruction length.
   kINSTRUCTION_LENGTH_1,
   kd16,
   ka16,
@@ -351,6 +356,14 @@ static const char* const operand_str_table [] = {
   "5",
   "6",
   "7",
+  "0x00",
+  "0x08",
+  "0x10",
+  "0x18",
+  "0x20",
+  "0x28",
+  "0x30",
+  "0x38",
   // kINSTRUCTION_LENGTH_0
   "SHOULD NOT BE POSSIBLE",
   "d8",
@@ -403,17 +416,17 @@ static const enum Operand operand_0_table [256] = {
   kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
   kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
   // Cx
-  kCOND_NZ, kBC, kCOND_NZ, kNONE, kCOND_NZ, kBC, kA, kNONE,
-  kNONE, kNONE, kCOND_Z, kNONE, kCOND_Z, kNONE, kA, kNONE,
+  kCOND_NZ, kBC, kCOND_NZ, kNONE, kCOND_NZ, kBC, kA, kLITERAL_0x00,
+  kNONE, kNONE, kCOND_Z, kNONE, kCOND_Z, kNONE, kA, kLITERAL_0x08,
   // Dx
-  kCOND_NC, kDE, kCOND_NC, kNONE, kCOND_NZ, kDE, kNONE, kNONE,
-  kNONE, kNONE, kCOND_C, kNONE, kNONE, kNONE, kA, kNONE,
+  kCOND_NC, kDE, kCOND_NC, kNONE, kCOND_NZ, kDE, kNONE, kLITERAL_0x10,
+  kNONE, kNONE, kCOND_C, kNONE, kNONE, kNONE, kA, kLITERAL_0x18,
   // Ex
-  kDEREF_a8, kHL, kDEREF_C, kNONE, kNONE, kHL, kd8, kNONE,
-  kSP, kDEREF_HL, kDEREF_a16, kNONE, kNONE, kNONE, kd8, kNONE,
+  kDEREF_a8, kHL, kDEREF_C, kNONE, kNONE, kHL, kd8, kLITERAL_0x20,
+  kSP, kDEREF_HL, kDEREF_a16, kNONE, kNONE, kNONE, kd8, kLITERAL_0x28,
   // Fx
-  kA, kAF, kA, kNONE, kNONE, kAF, kd8, kNONE,
-  kHL, kSP, kA, kNONE, kNONE, kNONE, kd8, kNONE
+  kA, kAF, kA, kNONE, kNONE, kAF, kd8, kLITERAL_0x30,
+  kHL, kSP, kA, kNONE, kNONE, kNONE, kd8, kLITERAL_0x38
 };
 
 static const enum Operand operand_1_table [256] = {
