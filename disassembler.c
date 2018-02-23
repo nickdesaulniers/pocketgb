@@ -603,28 +603,29 @@ void decode_instruction (const struct rom* const rom, const uint16_t pc,
     struct instruction* const instruction) {
   memset(instruction, 0, sizeof(*instruction));
   const uint8_t first_byte = rom->data[pc];
+  if (first_byte == 0xCB) {
+    return decode_cb(rom, pc + 1, instruction);
+  }
+
   instruction->opcode = decode_table[first_byte];
+  instruction->operands[0] = operand_0_table[first_byte];
+  instruction->operands[1] = operand_1_table[first_byte];
+  // calculate instruction length
+  const uint8_t len = 1 +
+    (instruction->operands[0] > kINSTRUCTION_LENGTH_0) +
+    (instruction->operands[0] > kINSTRUCTION_LENGTH_1) +
+    (instruction->operands[1] > kINSTRUCTION_LENGTH_0) +
+    (instruction->operands[1] > kINSTRUCTION_LENGTH_1);
+  instruction->length = len;
+
 #ifndef NDEBUG
   if (instruction->opcode == kInvalid) {
     fprintf(stderr, "Looks like were trying to decode data as instructions,\n"
         "rest of disassembly may be invalid from this point.\n WARN: "
         PRIshort "\n", pc);
     instruction->length = 1;
-  } else
-#endif
-    if (instruction->opcode == kCB) {
-    decode_cb(rom, pc + 1, instruction);
-  } else {
-    instruction->operands[0] = operand_0_table[first_byte];
-    instruction->operands[1] = operand_1_table[first_byte];
-    // calculate instruction length
-    const uint8_t len = 1 +
-      (instruction->operands[0] > kINSTRUCTION_LENGTH_0) +
-      (instruction->operands[0] > kINSTRUCTION_LENGTH_1) +
-      (instruction->operands[1] > kINSTRUCTION_LENGTH_0) +
-      (instruction->operands[1] > kINSTRUCTION_LENGTH_1);
-    instruction->length = len;
   }
+#endif
 }
 
 // TODO: maybe make this some kind of ToString() like fn?
