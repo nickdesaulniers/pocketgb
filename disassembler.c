@@ -201,22 +201,19 @@ enum __attribute__((packed)) Operand {
   kBIT_5,
   kBIT_6,
   kBIT_7,
-  // literals used by RST instructions
-  kLITERAL_0x00,
-  kLITERAL_0x08,
-  kLITERAL_0x10,
-  kLITERAL_0x18,
-  kLITERAL_0x20,
-  kLITERAL_0x28,
-  kLITERAL_0x30,
-  kLITERAL_0x38,
-  // Operands that appear after this enum add one to the instruction length.
+  // Should not be assigned, just used to delimit operands that add to
+  // instruction length.  Operands that appear after this enum add one to the
+  // instruction length.
+  kINSTRUCTION_LENGTH_0,
   // Literals
   kd8,
   kr8,
   kSP_r8,
   kDEREF_a8,
-  // Operands that appear after this enum add two to the instruction length.
+  // Should not be assigned, just used to delimit operands that add to
+  // instruction length.  Operands that appear after this enum add two to the
+  // instruction length.
+  kINSTRUCTION_LENGTH_1,
   kd16,
   ka16,
   kDEREF_a16,
@@ -254,18 +251,14 @@ static const char* const operand_str_table [] = {
   "5",
   "6",
   "7",
-  "0x00",
-  "0x08",
-  "0x10",
-  "0x18",
-  "0x20",
-  "0x28",
-  "0x30",
-  "0x38",
+  // kINSTRUCTION_LENGTH_0
+  "SHOULD NOT BE POSSIBLE",
   "d8",
   "r8",
   "SP+r8",
   "(a8)",
+  // kINSTRUCTION_LENGTH_1
+  "SHOULD NOT BE POSSIBLE",
   "d16",
   "a16",
   "(a16)"
@@ -280,7 +273,7 @@ struct instruction {
 
 static const struct instruction instruction_table [256] = {
   // 0x
-  { kNOP, { kNONE, kNONE }, 1 }, { kLD, { kBC, kd16 }, 3 },
+  { kNOP, { kNONE, kNONE }, 2 }, { kLD, { kBC, kd16 }, 3 },
   { kLD, { kDEREF_BC, kA }, 1 }, { kINC, { kBC, kNONE }, 1 },
   { kINC, { kB, kNONE }, 1 }, { kDEC, { kB, kNONE }, 1 },
   { kLD, { kB, kd8 }, 2 }, { kRLC, { kA, kNONE }, 1 },
@@ -405,42 +398,42 @@ static const struct instruction instruction_table [256] = {
   { kRET, { kCOND_NZ, kNONE }, 1 }, { kPOP, { kBC, kNONE }, 1 },
   { kJP, { kCOND_NZ, ka16 }, 3 }, { kJP, { kNONE, ka16 }, 3 },
   { kCALL, { kCOND_NZ, ka16 }, 3 }, { kPUSH , { kBC, kNONE }, 1 },
-  { kADD, { kA, kd8 }, 2 }, { kRST, { kLITERAL_0x00, kNONE }, 1 },
+  { kADD, { kA, kd8 }, 2 }, { kRST, { kNONE, kNONE }, 1 },
 
   { kRET, { kCOND_Z, kNONE }, 1 }, { kRET, { kNONE, kNONE }, 1 },
   { kJP, { kCOND_Z, ka16 }, 3 }, { kCB, { kNONE, kNONE }, 2 },
   { kCALL, { kCOND_Z, ka16 }, 3 }, { kCALL, { kNONE, ka16 }, 3 },
-  { kADC, { kA, kd8 }, 2 }, { kRST, { kLITERAL_0x08, kNONE }, 1 },
+  { kADC, { kA, kd8 }, 2 }, { kRST, { kNONE, kNONE }, 1 },
   // Dx
   { kRET, { kCOND_NC, kNONE }, 1 }, { kPOP, { kDE, kNONE }, 1 },
   { kJP, { kCOND_NC, ka16 }, 3 }, { kInvalid, { kNONE, kNONE }, 1 },
   { kCALL, { kCOND_NC, ka16 }, 3 }, { kPUSH, { kDE, kNONE }, 1 },
-  { kSUB, { kNONE, kd8 }, 2 }, { kRST, { kLITERAL_0x10, kNONE }, 1 },
+  { kSUB, { kNONE, kd8 }, 2 }, { kRST, { kNONE, kNONE }, 1 },
 
   { kRET, { kCOND_C, kNONE }, 1 }, { kRETI, { kNONE, kNONE }, 1 },
   { kJP, { kCOND_C, ka16 }, 3 }, { kInvalid, { kNONE, kNONE }, 1 },
   { kCALL, { kCOND_C, ka16, }, 3 }, { kInvalid, { kNONE, kNONE }, 1 },
-  { kSBC, { kA, kd8 }, 2 }, { kRST, { kLITERAL_0x18, kNONE }, 1 },
+  { kSBC, { kA, kd8 }, 2 }, { kRST, { kNONE, kNONE }, 1 },
   // Ex
   { kLD, { kDEREF_a8, kA }, 2 }, { kPOP, { kHL, kNONE }, 1 },
   { kLD, { kDEREF_C, kA }, 1 }, { kInvalid, { kNONE, kNONE }, 1 },
   { kInvalid, { kNONE, kNONE }, 1 }, { kPUSH, { kHL, kNONE }, 1 },
-  { kAND, { kd8, kNONE }, 2 }, { kRST, { kLITERAL_0x20, kNONE }, 1 },
+  { kAND, { kd8, kNONE }, 2 }, { kRST, { kNONE, kNONE }, 1 },
 
   { kADD, { kSP, kr8 }, 2 }, { kJP, { kNONE, kDEREF_HL }, 2 },
   { kLD, { kDEREF_a16, kA }, 3 }, { kInvalid, { kNONE, kNONE }, 1 },
   { kInvalid, { kNONE, kNONE }, 1 }, { kInvalid, { kNONE, kNONE }, 1 },
-  { kXOR, { kd8, kNONE }, 1 }, { kRST, { kLITERAL_0x28, kNONE }, 1 },
+  { kXOR, { kd8, kNONE }, 1 }, { kRST, { kNONE, kNONE }, 1 },
   // Fx
   { kLD, { kA, kDEREF_a8 }, 2 }, { kPOP, { kAF, kNONE }, 1 },
   { kLD, { kA, kDEREF_C }, 1 }, { kDI, { kNONE, kNONE }, 1 },
   { kInvalid, { kNONE, kNONE }, 1 }, { kPUSH, { kAF, kNONE }, 1 },
-  { kOR, { kd8, kNONE }, 2 }, { kRST, { kLITERAL_0x30, kNONE }, 1 },
+  { kOR, { kd8, kNONE }, 2 }, { kRST, { kNONE, kNONE }, 1 },
 
   { kLD, { kHL, kSP_r8}, 2 }, { kLD, { kSP, kHL }, 1 },
   { kLD, { kA, kDEREF_a16 }, 3 }, { kEI, { kNONE, kNONE }, 1 },
   { kInvalid, { kNONE, kNONE }, 1 }, { kInvalid, { kNONE, kNONE }, 1 },
-  { kCP, { kd8, kNONE }, 2 }, { kRST, { kLITERAL_0x38, kNONE }, 1 },
+  { kCP, { kd8, kNONE }, 2 }, { kRST, { kNONE, kNONE }, 1 },
 };
 
 static const struct instruction cb_instruction_table [256] = {
@@ -629,6 +622,10 @@ void print_instruction (const struct instruction* const instruction) {
   const enum Opcode op = instruction->opcode;
   const enum Operand op0 = instruction->operands[0];
   const enum Operand op1 = instruction->operands[1];
+  assert(op0 != kINSTRUCTION_LENGTH_0);
+  assert(op0 != kINSTRUCTION_LENGTH_1);
+  assert(op1 != kINSTRUCTION_LENGTH_0);
+  assert(op1 != kINSTRUCTION_LENGTH_1);
 
 // intentionally keep this if NDEBUG is used, otherwise check during decode in
 // order to get pc.
