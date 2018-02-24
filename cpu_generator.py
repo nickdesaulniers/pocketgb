@@ -50,37 +50,61 @@ def decode_instruction(instruction):
         handle_inc(instruction[1])
     else:
         raise ValueError('Unhandleable opcode: ' + op)
-    print('  lr35902->registers.pc += %d;' % instruction_len(instruction))
+    print('  %s += %d;' % (reg('pc'), instruction_len(instruction)))
     print('  break;')
 
 
 # Specefic instructions
 def handle_ld(dst, src):
-    if dst.startswith('kDEREF'):
-        print('  ' + (wb(decode_operand(dst), decode_operand(src))))
+    if is_deref(dst):
+        print('  ' + wb(decode_operand(dst), decode_operand(src)))
     else:
         print('  %s = %s;' % (decode_operand(dst), decode_operand(src)))
 
 
 def handle_inc(dst):
-    if dst == 'kDEREF_HL':
-        raise ValueError('Unhandled LD to (HL)')
-    # TODO: handle flags
-    print('  ++%s;' % decode_operand(dst))
+    decoded_dst = decode_operand(dst)
+    if is_deref(dst):
+        print('  ' + wb(decoded_dst, rb(decoded_dst) + 1))
+        z(rb(decoded_dst)), n0(), h(rb(decoded_dst))
+    else:
+        print('  ++%s;' % decoded_dst)
+        if len(dst) != 3:
+            z(decoded_dst), n0(), h(decoded_dst)
 
 
+# Utils
 def reg(reg):
     return 'lr35902->registers.' + reg
+
 
 def rb(addr):
     return 'rb(lr35902->mmu, %s)' % addr
 
+
 def wb(addr, val):
     return 'wb(lr35902->mmu, %s, %s)' % (addr, val)
 
+
+def z(dst):
+    print('  %s = !%s;' % (reg('f.z'), dst))
+
+
+def n0():
+    print('  %s = 0;' % reg('f.n'))
+
+
+def h(dst):
+    print('  %s = (%s & 0x10) == 0x10' % (reg('f.h'), dst))
+
+
+def is_deref(operand):
+    return operand.startswith('kDEREF')
+
+# Main
 operand_decode_table = OrderedDict([
     ('kA', reg('a')),
-    # ('kB', ''),
+    ('kB', reg('b')),
     # ('kC', ''),
     # ('kDEREF_C', ''),
     # ('kD', ''),
@@ -129,5 +153,5 @@ operand_decode_table = OrderedDict([
 for i, instruction in enumerate(get_instruction_list()):
     print('case 0x%s:' % format(i, '02X'))
     decode_instruction(instruction)
-    if i == 2:
+    if i == 4:
         break
