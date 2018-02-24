@@ -1,0 +1,48 @@
+kNONE, kBC, kDEREF_BC, kBC, kB, kB, kB, kNONE,
+kDEREF_a16, kHL, kA, kBC, kC, kC, kC, kNONE,
+
+kNONE, kDE, kDEREF_DE, kDE, kD, kD, kD, kNONE,
+kNONE, kHL, kA, kDE, kE, kE, kE, kNONE,
+
+kCOND_NZ, kHL, kDEREF_HL_INC, kHL, kH, kH, kH, kNONE,
+kCOND_Z, kHL, kA, kHL, kL, kL, kL, kNONE,
+
+kCOND_NC, kSP, kDEREF_HL_DEC, kSP, kDEREF_HL, kDEREF_HL, kDEREF_HL, kNONE,
+kCOND_C, kHL, kA, kSP, kA, kA, kA, kNONE,
+
+kB, kB, kB, kB, kB, kB, kB, kB,
+kC, kC, kC, kC, kC, kC, kC, kC,
+
+kD, kD, kD, kD, kD, kD, kD, kD,
+kE, kE, kE, kE, kE, kE, kE, kE,
+
+kH, kH, kH, kH, kH, kH, kH, kH,
+kL, kL, kL, kL, kL, kL, kL, kL,
+
+kDEREF_HL, kDEREF_HL, kDEREF_HL, kDEREF_HL,
+kDEREF_HL, kDEREF_HL, kNONE, kDEREF_HL,
+kA, kA, kA, kA, kA, kA, kA, kA,
+
+kA, kA, kA, kA, kA, kA, kA, kA,
+kA, kA, kA, kA, kA, kA, kA, kA,
+
+kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+kA, kA, kA, kA, kA, kA, kA, kA,
+
+kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+
+kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+
+kCOND_NZ, kBC, kCOND_NZ, kNONE, kCOND_NZ, kBC, kA, kLITERAL_0x00,
+kNONE, kNONE, kCOND_Z, kNONE, kCOND_Z, kNONE, kA, kLITERAL_0x08,
+
+kCOND_NC, kDE, kCOND_NC, kNONE, kCOND_NZ, kDE, kNONE, kLITERAL_0x10,
+kNONE, kNONE, kCOND_C, kNONE, kNONE, kNONE, kA, kLITERAL_0x18,
+
+kDEREF_a8, kHL, kDEREF_C, kNONE, kNONE, kHL, kd8, kLITERAL_0x20,
+kSP, kDEREF_HL, kDEREF_a16, kNONE, kNONE, kNONE, kd8, kLITERAL_0x28,
+
+kA, kAF, kA, kNONE, kNONE, kAF, kd8, kLITERAL_0x30,
+kHL, kSP, kA, kNONE, kNONE, kNONE, kd8, kLITERAL_0x38

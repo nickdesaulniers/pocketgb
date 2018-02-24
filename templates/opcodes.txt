@@ -1,0 +1,47 @@
+kNOP, kLD, kLD, kINC, kINC, kDEC, kLD, kRLC,
+kLD, kADD, kLD, kDEC, kINC, kDEC, kLD, kRRC,
+
+kSTOP, kLD, kLD, kINC, kINC, kDEC, kLD, kRL,
+kJR, kADD, kLD, kDEC, kINC, kDEC, kLD, kRR,
+
+kJR, kLD, kLD, kINC, kINC, kDEC, kLD, kDAA,
+kJR, kADD, kLD, kDEC, kINC, kDEC, kLD, kCPL,
+
+kJR, kLD, kLD, kINC, kINC, kDEC, kLD, kSCF,
+kJR, kADD, kLD, kDEC, kINC, kDEC, kLD, kCCF,
+
+kLD, kLD, kLD, kLD, kLD, kLD, kLD, kLD,
+kLD, kLD, kLD, kLD, kLD, kLD, kLD, kLD,
+
+kLD, kLD, kLD, kLD, kLD, kLD, kLD, kLD,
+kLD, kLD, kLD, kLD, kLD, kLD, kLD, kLD,
+
+kLD, kLD, kLD, kLD, kLD, kLD, kLD, kLD,
+kLD, kLD, kLD, kLD, kLD, kLD, kLD, kLD,
+
+kLD, kLD, kLD, kLD, kLD, kLD, kHALT, kLD,
+kLD, kLD, kLD, kLD, kLD, kLD, kLD, kLD,
+
+kADD, kADD, kADD, kADD, kADD, kADD, kADD, kADD,
+kADC, kADC, kADC, kADC, kADC, kADC, kADC, kADC,
+
+kSUB, kSUB, kSUB, kSUB, kSUB, kSUB, kSUB, kSUB,
+kSBC, kSBC, kSBC, kSBC, kSBC, kSBC, kSBC, kSBC,
+
+kAND, kAND, kAND, kAND, kAND, kAND, kAND, kAND,
+kXOR, kXOR, kXOR, kXOR, kXOR, kXOR, kXOR, kXOR,
+
+kOR, kOR, kOR, kOR, kOR, kOR, kOR, kOR,
+kCP, kCP, kCP, kCP, kCP, kCP, kCP, kCP,
+
+kRET, kPOP, kJP, kJP, kCALL, kPUSH, kADD, kRST,
+kRET, kRET, kJP, kCB, kCALL, kCALL, kADC, kRST,
+
+kRET, kPOP, kJP, kInvalid, kCALL, kPUSH, kSUB, kRST,
+kRET, kRET, kJP, kInvalid, kCALL, kInvalid, kSBC, kRST,
+
+kLD, kPOP, kLD, kInvalid, kInvalid, kPUSH, kAND, kRST,
+kADD, kJP, kLD, kInvalid, kInvalid, kInvalid, kXOR, kRST,
+
+kLD, kPOP, kLD, kDI, kInvalid, kPUSH, kOR, kRST,
+kLD, kLD, kLD, kEI, kInvalid, kInvalid, kCP, kRST

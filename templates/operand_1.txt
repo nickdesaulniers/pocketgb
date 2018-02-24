@@ -1,0 +1,47 @@
+kNONE, kd16, kA, kNONE, kNONE, kNONE, kd8, kNONE,
+kSP, kBC, kDEREF_BC, kNONE, kNONE, kNONE, kd8, kNONE,
+
+kNONE, kd16, kA, kNONE, kNONE, kNONE, kd8, kNONE,
+kr8, kDE, kDEREF_DE, kNONE, kNONE, kNONE, kd8, kNONE,
+
+kr8, kd16, kA, kNONE, kNONE, kNONE, kd8, kNONE,
+kr8, kHL, kDEREF_HL_INC, kNONE, kNONE, kNONE, kd8, kNONE,
+
+kr8, kd16, kA, kNONE, kNONE, kNONE, kd8, kNONE,
+kr8, kSP, kDEREF_HL_DEC, kNONE, kNONE, kNONE, kd8, kNONE,
+
+kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+
+kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+
+kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+
+kB, kC, kD, kE, kH, kL, kNONE, kA,
+kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+
+kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+
+kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE,
+kB, kC, kD, kE, kH, kL, kDEREF_HL, kA,
+
+kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE,
+kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE,
+
+kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE,
+kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE, kNONE,
+
+kNONE, kNONE, ka16, ka16, ka16, kNONE, kd8, kNONE,
+kNONE, kNONE, ka16, kNONE, ka16, ka16, kd8, kNONE,
+
+kNONE, kNONE, ka16, kNONE, ka16, kNONE, kNONE, kNONE,
+kNONE, kNONE, ka16, kNONE, ka16, kNONE, kd8, kNONE,
+
+kA, kNONE, kA, kNONE, kNONE, kNONE, kNONE, kNONE,
+kr8, kDEREF_HL, kA, kNONE, kNONE, kNONE, kNONE, kNONE,
+
+kDEREF_a8, kNONE, kA, kNONE, kNONE, kNONE, kNONE, kNONE,
+kSP_r8, kHL, kDEREF_a16, kNONE, kNONE, kNONE, kNONE, kNONE
