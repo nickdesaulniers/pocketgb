@@ -12,6 +12,22 @@ static void handle_tile_write (const uint16_t addr);
 
 uint8_t rb (const struct mmu* const mem, const uint16_t addr) {
   // todo: fancy case statement
+  switch (addr & 0xF000) {
+    case 0xE000:
+      LOG(7, "read from echo ram\n");
+      return rb(mem, addr - 0x2000);
+    case 0xF000:
+      switch (addr & 0x0F00) {
+        case 0x0E00:
+        case 0x0F00:
+          break;
+        default:
+          LOG(7, "read from echo ram\n");
+          return rb(mem, addr - 0x2000);
+          break;
+      }
+      break;
+  }
   return mem->memory[addr];
 }
 
@@ -25,11 +41,21 @@ void wb (struct mmu* const mem, const uint16_t addr, const uint8_t val) {
     case 0x9000: // intentional fallthrough
       handle_tile_write(addr);
       break;
+    case 0xE000:
+      // echo ram
+      puts("write to echo ram");
+      return wb(mem, addr - 0x2000, val);
     case 0xF000:
       switch (addr & 0x0F00) {
+        case 0x0E00:
+          break;
         case 0x0F00:
           handle_hardware_io_side_effects(mem, addr, val);
           break;
+        default:
+          // echo ram
+          puts("write to echo ram");
+          return wb(mem, addr - 0x2000, val);
       }
       break;
   }
@@ -66,6 +92,9 @@ static int read_file_into_memory (const char* const path, void* dest) {
   if (!fsize) {
     return -1;
   }
+  // only the first 0x7FFF bytes get mapped in, otherwise a memory bank
+  // controller must be used
+  fsize = fsize < 0x7FFF ? fsize : 0x7FFF;
 
   size_t read = fread(dest, 1, fsize, f);
   if (read != fsize) {
