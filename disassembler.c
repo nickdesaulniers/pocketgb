@@ -646,8 +646,7 @@ void print_instruction (const struct instruction* const instruction) {
       instruction->length);
 }
 
-int disassemble (const struct rom* const rom) {
-  uint16_t pc = 0;
+int disassemble (const struct rom* const rom, uint16_t pc) {
   const struct instruction* instruction = NULL;
   while (pc < rom->size) {
     decode_instruction(rom, pc, &instruction);
@@ -667,9 +666,29 @@ static void print_sizes () {
       sizeof(struct instruction), sizeof(enum Opcode), sizeof(enum Operand));
 }
 
+static uint16_t get_starting_address (int argc, char** argv,
+    const size_t rom_size) {
+  if (argc == 2) return 0;
+
+  const long addr = strtol(argv[2], NULL, 0);
+  if (addr <= 0) {
+    fprintf(stderr, "Unable to parse starting address as hex: %s\n", argv[2]);
+    return 0;
+  }
+
+  if ((unsigned long)addr > rom_size || addr > UINT16_MAX) {
+    fprintf(stderr, "Given starting address greater than rom size: %ld\n",
+        addr);
+    return 0;
+  }
+
+  return (uint16_t) addr;
+}
+
 int main (int argc, char** argv) {
-  if (argc != 2) {
-    fprintf(stderr, "Usage: ./disassembler <rom.gb>\n");
+  if (argc < 2 || argc > 3) {
+    fprintf(stderr, "Usage: ./disassembler <rom.gb> "
+        "[starting address in hex with 0x prefix]\n");
     return -1;
   }
   print_sizes();
@@ -681,6 +700,6 @@ int main (int argc, char** argv) {
     fprintf(stderr, "Error opening rom file %s\n", rom_fname);
     return -1;
   }
-  disassemble(rom);
+  disassemble(rom, get_starting_address(argc, argv, rom->size));
   destroy_rom((struct rom* const)rom);
 }
