@@ -1,8 +1,8 @@
-kNONE, kBC, kDEREF_BC, kBC, kB, kB, kB, kNONE,
-kDEREF_a16, kHL, kA, kBC, kC, kC, kC, kNONE,
+kNONE, kBC, kDEREF_BC, kBC, kB, kB, kB, kA,
+kDEREF_a16, kHL, kA, kBC, kC, kC, kC, kA,
 
-kNONE, kDE, kDEREF_DE, kDE, kD, kD, kD, kNONE,
-kNONE, kHL, kA, kDE, kE, kE, kE, kNONE,
+kNONE, kDE, kDEREF_DE, kDE, kD, kD, kD, kA,
+kNONE, kHL, kA, kDE, kE, kE, kE, kA,
 
 kCOND_NZ, kHL, kDEREF_HL_INC, kHL, kH, kH, kH, kNONE,
 kCOND_Z, kHL, kA, kHL, kL, kL, kL, kNONE,
