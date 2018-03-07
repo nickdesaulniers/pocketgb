@@ -31,6 +31,7 @@ def operand_len(operand):
 
 def instruction_len(instruction):
     # TODO: handle CB and oddities like STOP
+    # and jumps that shouldn't always set this
     return 1 + operand_len(instruction[1]) + operand_len(instruction[2])
 
 
@@ -86,16 +87,20 @@ def handle_dec(dst, _):
             z(decoded_dst), fset('n'), h(decoded_dst)
 
 
+def nth_bit_to_x(n, x, dst):
+    print('  %s ^=\n    (-%s ^ %s) & (1U << %s);' % (dst, str(x), dst, str(n)))
+
+
 def handle_rl(through_carry, dst, _):
     if is_deref(dst):
         raise ValueError('Unhandled RLC (HL)')
     decoded_dst = decode_operand(dst)
-    print('  const uint8_t old_7_bit = (%s & 0x80) >> 7;' % reg(decoded_dst))
-    print('  %s <<= 1;' % reg(decoded_dst))
+    print('  const uint8_t old_7_bit = (%s & 0x80) >> 7;' % decoded_dst)
+    print('  %s <<= 1;' % decoded_dst)
     if through_carry:
-        print('  %s |= %s;' % (reg(decoded_dst), reg('f.c')))
+        nth_bit_to_x(0, reg('f.c'), decoded_dst)
     else:
-        print('  %s |= old_7_bit;' % reg(decoded_dst))
+        nth_bit_to_x(0, 'old_7_bit', decoded_dst)
     # Errata in http://www.pastraiser.com/cpu/gameboy/gameboy_opcodes.html
     # RLCA/RLA don't reset z when a is dst
     z(decoded_dst), freset('n'), freset('h'), c('old_7_bit')
@@ -105,15 +110,15 @@ def handle_rr(through_carry, dst, _):
     if is_deref(dst):
         raise ValueError('Unhandled RRC (HL)')
     decoded_dst = decode_operand(dst)
-    print('  const uint8_t old_0_bit = %s & 0x01;' % reg(decoded_dst))
-    print('  %s >>= 1;' % reg(decoded_dst))
+    print('  const uint8_t old_0_bit = %s & 0x01;' % decoded_dst)
+    print('  %s >>= 1;' % decoded_dst)
     if through_carry:
-        print('  %s |= (%s << 7);' % (reg(decoded_dst), reg('f.c')))
+        nth_bit_to_x(7, reg('f.c'), decoded_dst)
     else:
-        print('  %s |= (old_0_bit << 7);' % reg(decoded_dst))
+        nth_bit_to_x(7, 'old_0_bit', decoded_dst)
     # Errata in http://www.pastraiser.com/cpu/gameboy/gameboy_opcodes.html
     # RRCA/RRA don't reset z when a is dst
-    z(decoded_dst), freset('n'), freset('h'), c('old_7_bit')
+    z(decoded_dst), freset('n'), freset('h'), c('old_0_bit')
 
 
 def handle_add(dst, src):
@@ -122,8 +127,20 @@ def handle_add(dst, src):
     freset('n'), h(decoded_dst), c(decoded_dst)
     if dst == 'kSP':
         freset('z')
+    elif is_16b_reg(dst):
+        pass
     else:
         z(decoded_dst)
+
+def jump_to(rhs_minus_one):
+    print('  %s += %s;' % (reg('pc'), rhs_minus_one))
+
+
+def handle_jr(cond, rel):
+    if cond == 'kNONE':
+        jump_to('load_r8(lr35902) + 1')
+    else:
+        raise ValueError('conditions not yet evaluated')
 
 
 # Utils
@@ -181,7 +198,7 @@ operand_decode_table = OrderedDict([
     ('kC', reg('c')),
     # ('kDEREF_C', ''),
     ('kD', reg('d')),
-    # ('kE', ''),
+    ('kE', reg('e')),
     # ('kH', ''),
     # ('kL', ''),
     # ('kAF', ''),
@@ -233,10 +250,12 @@ opcode_table = {
     'kRRC': partial(handle_rr, False),
     'kSTOP': lambda x, y: print('  %s += 1;' % reg('pc')),
     'kRL': partial(handle_rl, True),
+    'kJR': handle_jr,
+    'kRR': partial(handle_rr, True),
 }
 
 for i, instruction in enumerate(get_instruction_list()):
     print('case 0x%s:' % format(i, '02X'))
     decode_instruction(instruction)
-    if i == 23:
+    if i == 31:
         break
