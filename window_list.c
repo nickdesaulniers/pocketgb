@@ -1,12 +1,12 @@
-#include <assert.h>
 #include "window_list.h"
+
+#include <assert.h>
 
 void window_list_deinit (struct window_list* wl) {
   assert(wl && wl->window);
-  SDL_DestroyWindow(wl->window);
-  wl = wl->next;
   while (wl && wl->window) {
     SDL_DestroyWindow(wl->window);
+    SDL_DestroyRenderer(wl->renderer);
     struct window_list* prev = wl;
     wl = wl->next;
     free(prev);
