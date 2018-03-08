@@ -49,5 +49,6 @@ struct cpu {
 
 typedef void (*instr) (struct cpu* const);
 
-instr decode (const struct cpu* const);
-void cpu_power_up (struct cpu* const);
+int tick_once (struct cpu* const cpu);
+void init_cpu (struct cpu* const restrict cpu,
+    struct mmu* const restrict mmu);

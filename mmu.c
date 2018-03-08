@@ -1,5 +1,6 @@
 #include "mmu.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -82,7 +83,8 @@ static size_t get_filesize (FILE* f) {
 }
 
 // return 0 on success
-static int read_file_into_memory (const char* const path, void* dest) {
+static int read_file_into_memory (const char* const path, void* dest,
+    size_t* const rom_size) {
   printf("opening %s\n", path);
   FILE* f = fopen(path, "r");
   if (!f) {
@@ -91,6 +93,9 @@ static int read_file_into_memory (const char* const path, void* dest) {
   size_t fsize = get_filesize(f);
   if (!fsize) {
     return -1;
+  }
+  if (rom_size) {
+    *rom_size = fsize;
   }
   // only the first 0x7FFF bytes get mapped in, otherwise a memory bank
   // controller must be used
@@ -104,26 +109,26 @@ static int read_file_into_memory (const char* const path, void* dest) {
 }
 
 // http://gameboy.mongenel.com/dmg/asmmemmap.html
-struct mmu* init_memory (char** roms, const int len) {
-  struct mmu* const mem = malloc(sizeof(struct mmu));
-  if (mem) {
-    // poison value
-    memset(mem, 0xF7, sizeof(struct mmu));
+// Returns NULL on error
+// bios may be null
+// rom must not be
+struct mmu* init_memory (const char* const restrict bios,
+    const char* const restrict rom) {
+  assert(rom != NULL);
+  struct mmu* const mmu = malloc(sizeof(struct mmu));
+  if (!mmu) return mmu;
+#ifndef NDEBUG
+  memset(mmu->memory, 0xF7, sizeof(mmu->memory));
+#endif
+  int rc = read_file_into_memory(rom, mmu->memory, &mmu->rom_size);
+  if (rc) return NULL;
+  if (bios) {
+    memcpy(mmu->rom_masked_by_bios, mmu->memory, sizeof(mmu->rom_masked_by_bios));
+    rc = read_file_into_memory(bios, mmu->memory, NULL);
+    if (rc) return NULL;
   }
-
-  for (int i = len; i; --i) {
-    if (read_file_into_memory(roms[i - 1], mem)) {
-      free(mem);
-      return NULL;
-    }
-    // When memory is initialized, the boot rom masks 0x00-0xFF until write to
-    // 0xFF50. Make a backup of it.
-    if (i == len) {
-      memcpy(mem->rom_masked_by_bios, mem, 256);
-    }
-  }
-
-  return mem;
+  mmu->has_bios = !!bios;
+  return mmu;
 }
 
 void deinit_memory (struct mmu* const mem) {
@@ -136,7 +141,6 @@ void deinit_memory (struct mmu* const mem) {
 static void power_up_sequence (struct mmu* const mem) {
   // remove the BIOS
   memcpy(mem, mem->rom_masked_by_bios, 256);
-  cpu_power_up(mem->cpu);
   wb(mem, 0xFF05, 0x00); // TIMA
   wb(mem, 0xFF06, 0x00); // TMA
   wb(mem, 0xFF07, 0x00); // TAC

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <stddef.h>
 
 #include "cpu.h"
 
@@ -9,10 +10,13 @@ struct mmu {
   uint8_t memory [65536];
   // the BIOS covers this until write to 0xFF50
   uint8_t rom_masked_by_bios [256];
-  struct cpu* cpu;
+  int has_bios;
+  size_t rom_size;
 };
 
-struct mmu* init_memory (char** roms, const int len);
+__attribute__((nonnull(2)))
+struct mmu* init_memory (const char* const restrict bios,
+    const char* const restrict rom) ;
 void deinit_memory (struct mmu* const);
 uint8_t rb (const struct mmu* const mem, uint16_t addr);
 uint16_t rw (const struct mmu* const mem, uint16_t addr);

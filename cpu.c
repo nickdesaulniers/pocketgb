@@ -834,7 +834,7 @@ static const instr opcodes [256] = {
   LDH_A_DEREF_a8, POP_AF, 0, DI, 0, PUSH_AF, OR_d8, 0, LD_HL_SP_r8, LD_SP_HL, LD_A_DEREF_a16, EI, 0, 0, CP_d8, 0  // Fx
 };
 
-instr decode (const struct cpu* const cpu) {
+static instr decode (const struct cpu* const cpu) {
   uint16_t pc = cpu->registers.pc;
   uint8_t opcode = rb(cpu->mmu, pc);
   PBYTE(4, opcode);
@@ -850,23 +850,30 @@ instr decode (const struct cpu* const cpu) {
   return i;
 }
 
+int tick_once (struct cpu* const cpu) {
+  instr i = decode(cpu);
+  uint16_t pre_op_pc = cpu->registers.pc;
+  i(cpu);
+  assert(pre_op_pc != cpu->registers.pc);
+  // TODO: make i() return int (cycles), return that here.
+  return 4;
+}
 
-void cpu_power_up (struct cpu* const cpu) {
-  // TODO: are these just the state after the bios?
-  // looks like yes, except for f. Likely a bug, or possible errata?
-  PSHORT(6, cpu->registers.af);
-  pflags(6, cpu->registers.f);
-  /*PSHORT(6, cpu->registers.bc);*/
-  /*PSHORT(6, cpu->registers.de);*/
-  /*PSHORT(6, cpu->registers.hl);*/
-  /*PSHORT(6, cpu->registers.sp);*/
-  cpu->registers.af = 0x01B0;
-  cpu->registers.bc = 0x0013;
-  cpu->registers.de = 0x00D8;
-  cpu->registers.hl = 0x014D;
-  cpu->registers.sp = 0xFFFE;
-  /*PSHORT(6, cpu->registers.pc);*/
-  // TODO: likely set this if booted w/o bios
-  /*cpu->registers.pc = 0x0100;*/
+void init_cpu (struct cpu* const restrict cpu,
+    struct mmu* const restrict mmu) {
+  assert(cpu != NULL);
+  assert(mmu != NULL);
+  cpu->mmu = mmu;
+  // Don't jump the pc forward if it looks like we might be running just the
+  // BIOS.
+  if (!mmu->has_bios && mmu->rom_size != 256) {
+    // TODO: at the end of dmg bios, looks like af is 0x0101
+    cpu->registers.af = 0x01B0;
+    cpu->registers.bc = 0x0013;
+    cpu->registers.de = 0x00D8;
+    cpu->registers.hl = 0x014D;
+    cpu->registers.sp = 0xFFFE;
+    cpu->registers.pc = 0x0100;
+  }
   cpu->interrupts_enabled = 1;
 }
