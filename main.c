@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <signal.h>
 #include <stdio.h>
 
 #include "SDL.h"
@@ -8,6 +9,11 @@
 #include "lcd.h"
 #include "logging.h"
 #include "window_list.h"
+
+static int should_exit = 0;
+static void catch_sig_int(int signum) {
+  should_exit = signum == SIGINT;
+}
 
 static int initialize_system (const char* const restrict bios,
     const char* const restrict rom, struct cpu* const restrict cpu,
@@ -44,18 +50,21 @@ int main (int argc, char** argv) {
     fprintf(stderr, "Failed to initialize system.\n");
     return -1;
   }
+  if(signal(SIGINT, catch_sig_int) == SIG_ERR) {
+    perror("Unable to set SIGINT handler.\n");
+  }
 
-  /*assert(SDL_Init(SDL_INIT_VIDEO) == 0);*/
-  /*struct window_list* window_list_head = NULL;*/
-  /*create_debug_windows(&window_list_head);*/
-  /*SDL_Event e;*/
+  assert(SDL_Init(SDL_INIT_VIDEO) == 0);
+  struct window_list* window_list_head = NULL;
+  create_debug_windows(&window_list_head);
+  SDL_Event e;
 
   // TODO: while cpu not halted
   while (1) {
-    /*SDL_PollEvent(&e);*/
-    /*if (e.type == SDL_QUIT) {*/
-      /*break;*/
-    /*}*/
+    SDL_PollEvent(&e);
+    if (should_exit || e.type == SDL_QUIT) {
+      break;
+    }
 
     int cycles = tick_once(&cpu);
     LOG(4, "===\n");
@@ -68,7 +77,8 @@ int main (int argc, char** argv) {
     /*}*/
   }
 
-  /*window_list_deinit(window_list_head);*/
-  /*SDL_Quit();*/
+  window_list_deinit(window_list_head);
+  SDL_Quit();
   deinit_memory(cpu.mmu);
+  printf("exiting cleanly\n");
 }
