@@ -54,31 +54,25 @@ int main (int argc, char** argv) {
     perror("Unable to set SIGINT handler.\n");
   }
 
-  assert(SDL_Init(SDL_INIT_VIDEO) == 0);
-  struct window_list* window_list_head = NULL;
-  create_debug_windows(&window_list_head);
-  SDL_Event e;
+  /*assert(SDL_Init(SDL_INIT_VIDEO) == 0);*/
+  /*struct window_list* window_list_head = NULL;*/
+  /*create_debug_windows(&window_list_head);*/
+  /*SDL_Event e;*/
 
   // TODO: while cpu not halted
   while (1) {
-    SDL_PollEvent(&e);
-    if (should_exit || e.type == SDL_QUIT) {
+    /*SDL_PollEvent(&e);*/
+    /*if (should_exit || e.type == SDL_QUIT) {*/
+    if (should_exit) {
       break;
     }
 
     int cycles = tick_once(&cpu);
-    LOG(4, "===\n");
     update_lcd(&lcd, cycles);
-
-    /*if (breakpoint(&lr35902, 0x0055)) {*/
-    /*[>if (breakpoint(&lr35902, 0x27f7)) {<]*/
-      /*puts("printing tilemap");*/
-      /*update_debug_windows(window_list_head, &lcd);*/
-    /*}*/
   }
 
-  window_list_deinit(window_list_head);
-  SDL_Quit();
+  /*window_list_deinit(window_list_head);*/
+  /*SDL_Quit();*/
   deinit_memory(cpu.mmu);
   printf("exiting cleanly\n");
 }

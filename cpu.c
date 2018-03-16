@@ -6,6 +6,49 @@
 
 #include "logging.h"
 
+#define REG(reg) lr35902->registers.reg
+#define DEREF_READ(reg) rb(lr35902->mmu, REG(reg))
+
+static uint8_t bit (const unsigned index, const uint8_t src) {
+  assert(index < 8);
+  return (src >> index) & 1U;
+}
+
+static uint8_t rotate_right (struct cpu* const lr35902, const uint8_t t1) {
+  const uint8_t carry = bit(0, t1);
+  const uint8_t t2 = (REG(f.c) << 7) | t1 >> 1;
+  REG(f.c) = carry;
+  REG(f.h) = REG(f.n) = 0;
+  REG(f.z) = t2 == 0;
+  return t2;
+}
+
+/*static uint8_t rotate_right_through_carry (struct cpu* const lr35902,*/
+    /*const uint8_t t1) {*/
+  /*const uint8_t t2 = (t1 << 7) | (t1 >> 1);*/
+  /*REG(f.c) = bit(7, t2);*/
+  /*REG(f.h) = REG(f.n) = 0;*/
+  /*REG(f.z) = t2 == 0;*/
+  /*return t2;*/
+/*}*/
+
+static uint8_t rotate_left (struct cpu* const lr35902, const uint8_t t1) {
+  const uint8_t carry = bit(7, t1);
+  const uint8_t t2 = (t1 << 1) | REG(f.c);
+  REG(f.c) = carry;
+  REG(f.h) = REG(f.n) = 0;
+  return t2;
+}
+
+static uint8_t rotate_left_through_carry (struct cpu* const lr35902,
+    const uint8_t t1) {
+  const uint8_t t2 = (t1 << 1) | (t1 >> 7);
+  REG(f.c) = bit(0, t2);
+  REG(f.h) = REG(f.n) = 0;
+  REG(f.z) = t2 == 0;
+  return t2;
+}
+
 static void pflags (const int level, const struct flags f) {
   if (level <= LOG_LEVEL) {
     printf("Flags (Z N H C) (%u %u %u %u)\n", f.z, f.n, f.h, f.c);
@@ -43,16 +86,8 @@ static void CB_BIT_7_H (struct cpu* const lr35902) {
 }
 
 static void CB_RL_C (struct cpu* const lr35902) {
-  // rotate left aka circular shift
   LOG(5, "RL C\n");
-  const uint8_t old_7_bit = (lr35902->registers.c & 0x80) >> 7;
-  lr35902->registers.c <<= 1;
-  lr35902->registers.c ^=
-    (-lr35902->registers.f.c ^ lr35902->registers.c) & (1U << 0);
-  lr35902->registers.f.z = !lr35902->registers.c;
-  lr35902->registers.f.n = 0;
-  lr35902->registers.f.h = 0;
-  lr35902->registers.f.c = old_7_bit;
+  REG(c) = rotate_left(lr35902, REG(c));
 }
 
 static void CB_SWAP_A (struct cpu* const lr35902) {
@@ -122,18 +157,14 @@ static void NOP (struct cpu* const lr35902) {
   ++lr35902->registers.pc;
 }
 
-#define REG(reg) lr35902->registers.reg
-// TODO: will only read one byte
-#define DEREF_READ(reg) rb(lr35902->mmu, REG(reg))
-// TODO: does not compose
-#define DEREF_WRITE(reg, val) wb(lr35902->mmu, reg(reg), (val))
-
 #define INC_x(x, X)\
 static void INC_ ## X (struct cpu* const lr35902) { \
   LOG(5, "INC " #X "\n"); \
+  LOG(6, PRIbyte, REG(x)); \
   ++REG(x); \
+  LOG(6, PRIbyte, REG(x)); \
   lr35902->registers.f.z = lr35902->registers.x == 0; \
-  lr35902->registers.f.n = 1; \
+  lr35902->registers.f.n = 0; \
   lr35902->registers.f.h = (lr35902->registers.x & 0x10) == 0x10; \
   ++REG(pc); \
 }
@@ -162,7 +193,9 @@ INC_xy(hl, HL);
 #define DEC_x(x, X)\
 static void DEC_ ## X (struct cpu* const lr35902) {\
   LOG(5, "DEC " #X "\n"); \
+  LOG(6, PRIbyte, x); \
   --x; \
+  LOG(6, PRIbyte, x); \
   lr35902->registers.f.z = x == 0; \
   lr35902->registers.f.n = 1; \
   lr35902->registers.f.h = (x & 0x10) == 0x10; \
@@ -561,7 +594,7 @@ static void JR_NC_r8 (struct cpu* const lr35902) {
   LOG(6, "where r8 == " PRIbyte "\n", r8);
   PSHORT(6, lr35902->registers.pc);
 
-  __JR_COND_r8(lr35902, lr35902->registers.f.c);
+  __JR_COND_r8(lr35902, !lr35902->registers.f.c);
   PSHORT(6, lr35902->registers.pc);
 }
 
@@ -631,11 +664,11 @@ static void RET (struct cpu* const lr35902) {
 static void RET_Z (struct cpu* const lr35902) {
   LOG(5, "RET Z\n");
   if (lr35902->registers.f.z) {
-    // pop 2B from stack
-    lr35902->registers.sp += 2;
     // jump to that address
     LOG(6, "jumping\n");
     lr35902->registers.pc = rw(lr35902->mmu, lr35902->registers.sp);
+    // pop 2B from stack
+    lr35902->registers.sp += 2;
   } else {
     LOG(6, "not jumping\n");
     ++lr35902->registers.pc;
@@ -645,11 +678,11 @@ static void RET_Z (struct cpu* const lr35902) {
 static void RET_C (struct cpu* const lr35902) {
   LOG(5, "RET C\n");
   if (lr35902->registers.f.c) {
-    // pop 2B from stack
-    lr35902->registers.sp += 2;
     // jump to that address
     LOG(6, "jumping\n");
     lr35902->registers.pc = rw(lr35902->mmu, lr35902->registers.sp);
+    // pop 2B from stack
+    lr35902->registers.sp += 2;
   } else {
     LOG(6, "not jumping\n");
     ++lr35902->registers.pc;
@@ -662,11 +695,11 @@ static void RET_NC (struct cpu* const lr35902) {
     LOG(6, "not jumping\n");
     ++lr35902->registers.pc;
   } else {
-    // pop 2B from stack
-    lr35902->registers.sp += 2;
     // jump to that address
     LOG(6, "jumping\n");
     lr35902->registers.pc = rw(lr35902->mmu, lr35902->registers.sp);
+    // pop 2B from stack
+    lr35902->registers.sp += 2;
   }
 }
 
@@ -681,40 +714,22 @@ static void RST_28 (struct cpu* const lr35902) {
 
 static void RLA (struct cpu* const lr35902) {
   LOG(5, "RLA\n");
-  const uint8_t old_7_bit = (lr35902->registers.a & 0x80) >> 7;
-  lr35902->registers.a <<= 1;
-  lr35902->registers.a ^=
-    (-lr35902->registers.f.c ^ lr35902->registers.a) & (1U << 0);
-  lr35902->registers.f.z = !lr35902->registers.a;
-  lr35902->registers.f.n = 0;
-  lr35902->registers.f.h = 0;
-  lr35902->registers.f.c = old_7_bit;
+  REG(a) = rotate_left(lr35902, REG(a));
+  REG(f.z) = 0;
   ++lr35902->registers.pc;
 }
 
 static void RLCA (struct cpu* const lr35902) {
   LOG(5, "RLCA\n");
-  const uint8_t old_7_bit = (lr35902->registers.a & 0x80) >> 7;
-  lr35902->registers.a <<= 1;
-  lr35902->registers.a ^=
-    (-old_7_bit ^ lr35902->registers.a) & (1U << 0);
-  lr35902->registers.f.z = !lr35902->registers.a;
-  lr35902->registers.f.n = 0;
-  lr35902->registers.f.h = 0;
-  lr35902->registers.f.c = old_7_bit;
+  REG(a) = rotate_left_through_carry(lr35902, REG(a));
+  REG(f.z) = 0;
   ++lr35902->registers.pc;
 }
 
 static void RRA (struct cpu* const lr35902) {
   LOG(5, "RRA\n");
-  const uint8_t old_0_bit = lr35902->registers.a & 0x01;
-  lr35902->registers.a >>= 1;
-  lr35902->registers.a ^=
-    (-lr35902->registers.f.c ^ lr35902->registers.a) & (1U << 7);
-  lr35902->registers.f.z = !lr35902->registers.a;
-  lr35902->registers.f.n = 0;
-  lr35902->registers.f.h = 0;
-  lr35902->registers.f.c = old_0_bit;
+  REG(a) = rotate_right(lr35902, REG(a));
+  REG(f.z) = 0;
   ++lr35902->registers.pc;
 }
 
@@ -781,7 +796,7 @@ static void OR_d8 (struct cpu* const lr35902) {
   lr35902->registers.f.n = 0;
   lr35902->registers.f.h = 0;
   lr35902->registers.f.c = 0;
-  ++REG(pc);
+  REG(pc) += 2;
 }
 
 static void AND_C (struct cpu* const lr35902) {
@@ -837,7 +852,7 @@ static const instr opcodes [256] = {
 static instr decode (const struct cpu* const cpu) {
   uint16_t pc = cpu->registers.pc;
   uint8_t opcode = rb(cpu->mmu, pc);
-  PBYTE(4, opcode);
+  LOG(4, "== " PRIbyte " @ " PRIshort " ==\n", opcode, pc);
   instr i = opcodes[opcode];
   // unknown instr
 #ifndef NDEBUG
