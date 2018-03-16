@@ -641,13 +641,13 @@ static void CALL_NZ_a16 (struct cpu* const lr35902) {
 
   pflags(6, lr35902->registers.f);
   if (lr35902->registers.f.z) {
+    LOG(6, "not jumping\n");
+    lr35902->registers.pc += 3;
+  } else {
     // jump to address
     const uint16_t a16 = load_d16(lr35902);
     lr35902->registers.pc = a16;
     LOG(6, "jumping to " PRIshort "\n", lr35902->registers.pc);
-  } else {
-    LOG(6, "not jumping\n");
-    lr35902->registers.pc += 3;
   }
 }
 
