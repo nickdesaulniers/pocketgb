@@ -16,6 +16,7 @@ FLAGS = \
 	-O3 \
 	`pkg-config --cflags sdl2 --libs sdl2` \
 	-fsanitize=address \
+	-flto=thin \
 
 default:
 	cc $(SOURCES) $(FLAGS) -o pocketgb
