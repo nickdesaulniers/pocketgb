@@ -70,10 +70,19 @@ static int8_t load_r8 (const struct cpu* const cpu) {
   return (int8_t) load_d8(cpu);
 }
 
-static void store_d16 (const struct cpu* const cpu, const uint16_t addr,
-    const uint16_t value) {
-  ww(cpu->mmu, addr, value);
+static uint16_t pop (struct cpu* const lr35902) {
+  const uint16_t ret = rw(lr35902->mmu, REG(sp));
+  REG(sp) += 2;
+  LOG(6, "pop  " PRIshort " @ " PRIshort "\n", ret, REG(sp));
+  return ret;
 }
+
+static void push (struct cpu* const lr35902, const uint16_t value) {
+  LOG(6, "push " PRIshort " @ " PRIshort "\n", value, REG(sp));
+  REG(sp) -= 2;
+  ww(lr35902->mmu, REG(sp), value);
+}
+
 
 static void CB_BIT_7_H (struct cpu* const lr35902) {
   LOG(5, "BIT 7,H\n");
@@ -193,9 +202,9 @@ INC_xy(hl, HL);
 #define DEC_x(x, X)\
 static void DEC_ ## X (struct cpu* const lr35902) {\
   LOG(5, "DEC " #X "\n"); \
-  LOG(6, PRIbyte, x); \
+  LOG(6, PRIbyte "\n", x); \
   --x; \
-  LOG(6, PRIbyte, x); \
+  LOG(6, PRIbyte "\n", x); \
   lr35902->registers.f.z = x == 0; \
   lr35902->registers.f.n = 1; \
   lr35902->registers.f.h = (x & 0x10) == 0x10; \
@@ -521,8 +530,7 @@ static void LD_DEREF_BC_A (struct cpu* const lr35902) {
 #define PUSH_xy(xy, XY) \
 static void PUSH_ ## XY (struct cpu* const lr35902) { \
   LOG(5, "PUSH " #XY "\n"); \
-  REG(sp) -= 2; \
-  store_d16(lr35902, REG(sp), REG(xy)); \
+  push(lr35902, REG(xy)); \
   ++REG(pc); \
 }
 
@@ -534,9 +542,7 @@ PUSH_xy(hl, HL);
 #define POP_xy(xy, XY) \
 static void POP_ ## XY (struct cpu* const lr35902) { \
   LOG(5, "POP " #XY "\n"); \
-  REG(xy) = rw(lr35902->mmu, REG(sp)); \
-  PSHORT(6, REG(xy)); \
-  REG(sp) += 2; \
+  REG(xy) = pop(lr35902); \
   ++REG(pc); \
 }
 
@@ -573,6 +579,7 @@ static void JR_NZ_r8 (struct cpu* const lr35902) {
   LOG(5, "JR NZ,r8\n");
   int8_t r8 = load_r8(lr35902);
   LOG(6, "where r8 == %d\n", r8);
+  pflags(6, lr35902->registers.f);
   PSHORT(6, lr35902->registers.pc);
 
   __JR_COND_r8(lr35902, !lr35902->registers.f.z);
@@ -582,6 +589,7 @@ static void JR_Z_r8 (struct cpu* const lr35902) {
   LOG(5, "JR Z,r8\n");
   int8_t r8 = load_r8(lr35902);
   LOG(6, "where r8 == %d\n", r8);
+  pflags(6, lr35902->registers.f);
   PSHORT(6, lr35902->registers.pc);
 
   __JR_COND_r8(lr35902, lr35902->registers.f.z);
@@ -592,6 +600,7 @@ static void JR_NC_r8 (struct cpu* const lr35902) {
   LOG(5, "JR NC,r8\n");
   int8_t r8 = load_r8(lr35902);
   LOG(6, "where r8 == " PRIbyte "\n", r8);
+  pflags(6, lr35902->registers.f);
   PSHORT(6, lr35902->registers.pc);
 
   __JR_COND_r8(lr35902, !lr35902->registers.f.c);
@@ -608,6 +617,7 @@ static void JP_a16 (struct cpu* const lr35902) {
 
 static void JP_NZ_a16 (struct cpu* const lr35902) {
   LOG(5, "JP NZ,a16\n");
+  pflags(6, lr35902->registers.f);
   if (lr35902->registers.f.z) {
     REG(pc) += 3;
   } else {
@@ -625,19 +635,18 @@ static void JP_DEREF_HL (struct cpu* const lr35902) {
 static void CALL_a16 (struct cpu* const lr35902) {
   LOG(5, "CALL a16\n");
   // push address of next instruction onto stack
-  lr35902->registers.sp -= 2;
-  store_d16(lr35902, lr35902->registers.sp, lr35902->registers.pc + 3);
+  push(lr35902, REG(pc) + 3);
 
   // jump to address
   const uint16_t a16 = load_d16(lr35902);
-  lr35902->registers.pc = a16;
+  LOG(6, PRIshort "\n", a16);
+  REG(pc) = a16;
 }
 
 static void CALL_NZ_a16 (struct cpu* const lr35902) {
   LOG(5, "CALL NZ,a16\n");
   // push address of next instruction onto stack
-  lr35902->registers.sp -= 2;
-  store_d16(lr35902, lr35902->registers.sp, lr35902->registers.pc + 3);
+  push(lr35902, REG(pc) + 3);
 
   pflags(6, lr35902->registers.f);
   if (lr35902->registers.f.z) {
@@ -654,21 +663,20 @@ static void CALL_NZ_a16 (struct cpu* const lr35902) {
 static void RET (struct cpu* const lr35902) {
   LOG(5, "RET\n");
   // pop 2B from stack
-  const uint16_t a = rw(lr35902->mmu, lr35902->registers.sp);
+  const uint16_t a = pop(lr35902);
   PSHORT(6, a);
-  lr35902->registers.sp += 2;
   // jump to that address
   lr35902->registers.pc = a;
 }
 
 static void RET_Z (struct cpu* const lr35902) {
   LOG(5, "RET Z\n");
+  pflags(6, lr35902->registers.f);
   if (lr35902->registers.f.z) {
-    // jump to that address
     LOG(6, "jumping\n");
-    lr35902->registers.pc = rw(lr35902->mmu, lr35902->registers.sp);
     // pop 2B from stack
-    lr35902->registers.sp += 2;
+    // jump to that address
+    lr35902->registers.pc = pop(lr35902);
   } else {
     LOG(6, "not jumping\n");
     ++lr35902->registers.pc;
@@ -677,12 +685,12 @@ static void RET_Z (struct cpu* const lr35902) {
 
 static void RET_C (struct cpu* const lr35902) {
   LOG(5, "RET C\n");
+  pflags(6, lr35902->registers.f);
   if (lr35902->registers.f.c) {
-    // jump to that address
     LOG(6, "jumping\n");
-    lr35902->registers.pc = rw(lr35902->mmu, lr35902->registers.sp);
     // pop 2B from stack
-    lr35902->registers.sp += 2;
+    // jump to that address
+    lr35902->registers.pc = pop(lr35902);
   } else {
     LOG(6, "not jumping\n");
     ++lr35902->registers.pc;
@@ -691,23 +699,22 @@ static void RET_C (struct cpu* const lr35902) {
 
 static void RET_NC (struct cpu* const lr35902) {
   LOG(5, "RET NC\n");
+  pflags(6, lr35902->registers.f);
   if (lr35902->registers.f.c) {
     LOG(6, "not jumping\n");
     ++lr35902->registers.pc;
   } else {
-    // jump to that address
     LOG(6, "jumping\n");
-    lr35902->registers.pc = rw(lr35902->mmu, lr35902->registers.sp);
     // pop 2B from stack
-    lr35902->registers.sp += 2;
+    // jump to that address
+    lr35902->registers.pc = pop(lr35902);
   }
 }
 
 static void RST_28 (struct cpu* const lr35902) {
   LOG(5, "RST 0x28\n");
   // Push present address onto stack.
-  lr35902->registers.sp -= 2;
-  store_d16(lr35902, lr35902->registers.sp, lr35902->registers.pc);
+  push(lr35902, REG(pc));
   // Jump to address $0000 + n.
   lr35902->registers.pc = 0x28;
 }
