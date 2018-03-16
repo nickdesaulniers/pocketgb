@@ -180,9 +180,10 @@ static void power_up_sequence (struct mmu* const mem) {
 // if 1XXX,XXXX is written to 0xFF02, start transfer of 0xFF01
 static void sc_write (struct mmu* const mem, const uint8_t val) {
   if (val & 0x80) {
-    LOG(1, "putting " PRIbyte "\n", rb(mem, 0xFF01));
+    /*LOG(1, "putting " PRIbyte "\n", rb(mem, 0xFF01));*/
     /*putchar(rb(mem, 0xFF01));*/
-    printf("%c\n", rb(mem, 0xFF01));
+    /*printf("%c\n", rb(mem, 0xFF01));*/
+    putchar(rb(mem, 0xFF01));
   } else {
     LOG(1, "not putting\n");
   }
@@ -194,10 +195,10 @@ static void handle_hardware_io_side_effects(struct mmu* const mem,
     case 0x0000:
       switch (addr & 0x000F) {
         case 0x0001:
-          LOG(1, "data written to SB " PRIbyte " " PRIshort "\n", val, addr);
+          /*LOG(1, "data written to SB " PRIbyte " " PRIshort "\n", val, addr);*/
           break;
         case 0x0002:
-          LOG(1, "data written to SC " PRIbyte " " PRIshort "\n", val, addr);
+          /*LOG(1, "data written to SC " PRIbyte " " PRIshort "\n", val, addr);*/
           sc_write(mem, val);
           break;
       }
