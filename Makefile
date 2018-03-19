@@ -1,7 +1,7 @@
 LOG_LEVEL ?= 0
 
 SOURCES = \
-	cpu.c \
+	cpu2.c \
 	mmu.c \
 	lcd.c \
 	window_list.c \
@@ -19,10 +19,10 @@ FLAGS = \
 	-flto=thin \
 
 default:
-	cc $(SOURCES) $(FLAGS) -o pocketgb
+	$(CC) $(SOURCES) $(FLAGS) -o pocketgb
 
 disassembler: disassembler.c
-	cc disassembler.c $(FLAGS) -o disassembler
+	$(CC) disassembler.c $(FLAGS) -o disassembler
 
 clean:
 	rm -f pocketgb *.o

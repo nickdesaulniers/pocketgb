@@ -25,7 +25,6 @@ uint8_t rb (const struct mmu* const mem, const uint16_t addr) {
         default:
           LOG(7, "read from echo ram\n");
           return rb(mem, addr - 0x2000);
-          break;
       }
       break;
   }
