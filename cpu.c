@@ -74,13 +74,11 @@ static void pflags (const int level, const struct flags f) {
 }
 
 static uint16_t load_d16 (const struct cpu* const lr35902) {
-  uint16_t pc = lr35902->registers.pc;
-  return rw(lr35902->mmu, pc + 1);
+  return rw(lr35902->mmu, REG(pc) + 1);
 }
 
 static uint8_t load_d8 (const struct cpu* const lr35902) {
-  uint16_t pc = lr35902->registers.pc;
-  return rb(lr35902->mmu, pc + 1);
+  return rb(lr35902->mmu, REG(pc) + 1);
 }
 
 static int8_t load_r8 (const struct cpu* const cpu) {
@@ -197,9 +195,9 @@ static void NOP (struct cpu* const lr35902) {
 #define INC_x(x, X)\
 static void INC_ ## X (struct cpu* const lr35902) { \
   LOG(5, "INC " #X "\n"); \
-  LOG(6, PRIbyte, REG(x)); \
+  LOG(6, PRIbyte "\n", REG(x)); \
   ++REG(x); \
-  LOG(6, PRIbyte, REG(x)); \
+  LOG(6, PRIbyte "\n", REG(x)); \
   lr35902->registers.f.z = lr35902->registers.x == 0; \
   lr35902->registers.f.n = 0; \
   lr35902->registers.f.h = (lr35902->registers.x & 0x10) == 0x10; \
@@ -217,9 +215,9 @@ INC_x(l, L);
 #define INC_xy(xy, XY)\
 static void INC_ ## XY (struct cpu* const lr35902) { \
   LOG(5, "INC " #XY "\n"); \
-  PSHORT(6, REG(xy)); \
+  LOG(6, PRIshort "\n", REG(xy)); \
   ++REG(xy); \
-  PSHORT(6, REG(xy)); \
+  LOG(6, PRIshort "\n", REG(xy)); \
   ++REG(pc); \
 }
 
@@ -858,7 +856,7 @@ static void AND_d8 (struct cpu* const lr35902) {
   const uint8_t d8 = load_d8(lr35902);
   LOG(6, "where d8 == ");
   PBYTE(6, d8);
-  lr35902->registers.a |= d8;
+  lr35902->registers.a &= d8;
   lr35902->registers.f.z = !lr35902->registers.a;
   lr35902->registers.f.n = 0;
   lr35902->registers.f.h = 1;
