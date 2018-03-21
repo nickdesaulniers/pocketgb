@@ -35,8 +35,15 @@ static uint8_t deref_load(struct cpu* const cpu, const uint16_t addr) {
 }
 static void push(struct cpu* const cpu, const uint16_t value) {
   LOG(6, "push " PRIshort " @ " PRIshort "\n", value, REG(sp));
-  deref_store(cpu, REG(sp)--, value >> 8);
-  deref_store(cpu, REG(sp)--, value & 0xFF);
+  deref_store(cpu, --REG(sp), value >> 8);
+  deref_store(cpu, --REG(sp), value & 0xFF);
+}
+static uint16_t pop(struct cpu* const cpu) {
+  uint16_t value = deref_load(cpu, REG(sp)++);
+  // Must be a second statement due to sequence points
+  value |= deref_load(cpu, REG(sp)++) << 8;
+  LOG(6, "pop " PRIshort " @ " PRIshort "\n", value, REG(sp));
+  return value;
 }
 static uint8_t get_bit(const uint8_t src, const uint8_t index) {
   assert(index < 8);
@@ -63,7 +70,7 @@ static void xor (struct cpu * const cpu, const uint8_t x) {
   REG(f.h) = 1;
 }
 static void rotate_left(struct cpu* const cpu, uint8_t* const x) {
-  const uint8_t carry = get_bit(7, *x);
+  const uint8_t carry = get_bit(*x, 7);
   *x = (*x << 1) | REG(f.c);
   // REG(f.z) is handled different when destination register is A
   REG(f.c) = carry;
@@ -98,6 +105,10 @@ uint8_t tick_once(struct cpu* const cpu) {
       // LD DE,d16
       REG(de) = fetch_word(cpu);
       break;
+    case 0x17:
+      rotate_left(cpu, &REG(a));
+      REG(f.z) = 0;
+      break;
     case 0x1A:
       // LD A,(DE)
       REG(a) = deref_load(cpu, REG(de));
@@ -108,7 +119,7 @@ uint8_t tick_once(struct cpu* const cpu) {
       break;
     case 0x21:
       // LD DE,d16
-      REG(sp) = fetch_word(cpu);
+      REG(de) = fetch_word(cpu);
       break;
     case 0x26:
       // LD H,d8
@@ -136,6 +147,10 @@ uint8_t tick_once(struct cpu* const cpu) {
     case 0xAF:
       // XOR A
       xor(cpu, REG(a));
+      break;
+    case 0xC1:
+      // POP BC
+      REG(bc) = pop(cpu);
       break;
     case 0xC3:
       // JP a16
@@ -210,6 +225,8 @@ static void cb(struct cpu* const cpu) {
       break;
     case 0x11:
       // RL C
+      rotate_left(cpu, &REG(c));
+      REG(f.z) = !(REG(c));
       break;
     default:
       fprintf(stderr, "Unhandled 0xCB opcode: " PRIbyte "\n", op);
