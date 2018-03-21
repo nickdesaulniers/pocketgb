@@ -23,6 +23,22 @@ static void jump(struct cpu* const cpu, const uint16_t addr) {
   cpu->tick_cycles += 4;
   REG(pc) = addr;
 }
+static void jump_relative(struct cpu* const cpu) {
+  // Its relative to the end of the JR inst. At this point, we've already
+  // advanced the PC reading the opcode.
+  jump(cpu, (uint16_t)(REG(pc) + (int8_t)(fetch_byte(cpu))) + 1U);
+}
+static void conditional_jump_relative(struct cpu* const cpu,
+                                      const uint8_t cond) {
+  if (cond) {
+    jump_relative(cpu);
+    LOG(6, "jumping to " PRIshort "\n", REG(pc));
+  } else {
+    LOG(6, "not jumping\n");
+    ++REG(pc);
+  }
+}
+
 static void deref_store(struct cpu* const cpu,
                         const uint16_t addr,
                         const uint8_t value) {
@@ -54,6 +70,12 @@ static uint8_t test_half_carry(const uint8_t x) {
 }
 
 // logical operations
+static void dec(struct cpu* const cpu, uint8_t* const x) {
+  --*x;
+  REG(f.z) = !*x;
+  REG(f.n) = 1;
+  REG(f.h) = test_half_carry(*x);
+}
 static void inc(struct cpu* const cpu, uint8_t* const x) {
   ++*x;
   REG(f.z) = !*x;
@@ -84,10 +106,20 @@ uint8_t tick_once(struct cpu* const cpu) {
   cpu->tick_cycles = 0;
   const uint8_t op = fetch_byte(cpu);
 
+  LOG(5, "== " PRIbyte " @ " PRIshort "\n", op, REG(pc) - 1);
+
   // TODO: check for interrupts
   switch (op) {
     case 0x00:
       // NOP
+      break;
+    case 0x02:
+      // LD (BC),A
+      deref_store(cpu, REG(bc), REG(a));
+      break;
+    case 0x05:
+      // DEC B
+      dec(cpu, &REG(b));
       break;
     case 0x06:
       // LD B,d8
@@ -114,12 +146,20 @@ uint8_t tick_once(struct cpu* const cpu) {
       REG(a) = deref_load(cpu, REG(de));
       break;
     case 0x20:
-      // LD (BC),A
-      deref_store(cpu, REG(bc), REG(a));
+      // JR NZ,r8
+      conditional_jump_relative(cpu, !REG(f.z));
       break;
     case 0x21:
-      // LD DE,d16
-      REG(de) = fetch_word(cpu);
+      // LD HL,d16
+      REG(hl) = fetch_word(cpu);
+      break;
+    case 0x22:
+      // LD (HL+),A
+      deref_store(cpu, REG(hl)++, REG(a));
+      break;
+    case 0x23:
+      // INC HL
+      ++REG(hl);
       break;
     case 0x26:
       // LD H,d8
@@ -144,6 +184,7 @@ uint8_t tick_once(struct cpu* const cpu) {
     case 0x77:
       // LD (HL),A
       deref_store(cpu, REG(hl), REG(a));
+      break;
     case 0xAF:
       // XOR A
       xor(cpu, REG(a));
@@ -161,6 +202,13 @@ uint8_t tick_once(struct cpu* const cpu) {
       push(cpu, REG(bc));
       // This is weird
       cpu->tick_cycles += 4;
+      break;
+    case 0xC9:
+      // RET
+      printf("count of cycles for RET: %d\n", cpu->tick_cycles);
+      jump(cpu, pop(cpu));
+      printf("count of cycles for RET: %d\n", cpu->tick_cycles);
+      printf("jumping to " PRIshort "\n", REG(pc));
       break;
     case 0xCB:
       cb(cpu);
@@ -180,6 +228,12 @@ uint8_t tick_once(struct cpu* const cpu) {
     case 0xE2:
       // LD (C),A
       deref_store(cpu, 0xFF00 + REG(c), REG(a));
+      break;
+    case 0xF5:
+      // PUSH AF
+      push(cpu, REG(af));
+      // This is weird
+      cpu->tick_cycles += 4;
       break;
     case 0xFB:
       // EI
