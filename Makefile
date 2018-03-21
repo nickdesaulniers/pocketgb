@@ -26,3 +26,6 @@ disassembler: disassembler.c
 
 clean:
 	rm -f pocketgb *.o
+
+format:
+	clang-format-4.0 -style=Chromium -i cpu2.c
