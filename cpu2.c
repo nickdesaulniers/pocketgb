@@ -123,7 +123,7 @@ static void add(struct cpu* const cpu, const uint8_t x, const uint8_t carry) {
   const uint16_t sum = REG(a) + x + carry;
   const uint8_t y = (REG(a) & 0x0F) + (x & 0x0F) + carry;
   REG(a) = (uint8_t)sum;
-  REG(f.z) = !sum;
+  REG(f.z) = !REG(a);
   REG(f.n) = 0;
   REG(f.c) = sum > 0xFF;
   REG(f.h) = y > 0x0F;
@@ -198,12 +198,12 @@ uint8_t tick_once(struct cpu* const cpu) {
       jump(cpu, fetch_word(cpu));
     }) // CALL a16
     CASE(0xE0, {
-        deref_store(cpu, 0xFF00 + fetch_byte(cpu), REG(a));
+        deref_store(cpu, 0xFF00 | fetch_byte(cpu), REG(a));
     }) // LDH (a8),A
-    CASE(0xE2, { deref_store(cpu, 0xFF00 + REG(c), REG(a)); }) // LD (C),A
+    CASE(0xE2, { deref_store(cpu, 0xFF00 | REG(c), REG(a)); }) // LD (C),A
     CASE(0xEA, { deref_store(cpu, fetch_word(cpu), REG(a)); }) // LD (a16),A
     CASE(0xF0, {
-        REG(a) = deref_load(cpu, 0xFF00 + fetch_byte(cpu));
+        REG(a) = deref_load(cpu, 0xFF00 | fetch_byte(cpu));
     }) // LDH A,(a8)
     CASE(0xF5, {
       push(cpu, REG(af));
