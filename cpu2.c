@@ -141,7 +141,9 @@ uint8_t tick_once(struct cpu* const cpu) {
   // TODO: check for interrupts
   switch (op) {
     CASE(0x00, {}) // NOP
+    CASE(0x01, { REG(bc) = fetch_word(cpu); }) // LD BC,d16
     CASE(0x02, { deref_store(cpu, REG(bc), REG(a)); }) // LD (BC),A
+    CASE(0x03, { ++REG(bc); }) // INC BC
     CASE(0x04, { inc(cpu, &REG(b)); }) // INC B
     CASE(0x05, { dec(cpu, &REG(b)); }) // DEC B
     CASE(0x06, { REG(b) = fetch_byte(cpu); }) // LD B,d8
@@ -149,7 +151,9 @@ uint8_t tick_once(struct cpu* const cpu) {
     CASE(0x0D, { dec(cpu, &REG(c)); }) // DEC C
     CASE(0x0E, { REG(c) = fetch_byte(cpu); }) // LD C,d8
     CASE(0x11, { REG(de) = fetch_word(cpu); }) // LD DE,d16
+    CASE(0x12, { deref_store(cpu, REG(de), REG(a)); }) // LD (DE),A
     CASE(0x13, { ++REG(de); }) // INC DE
+    CASE(0x14, { inc(cpu, &REG(d)); }) // INC D
     CASE(0x15, { dec(cpu, &REG(d)); }) // DEC D
     CASE(0x16, { REG(d) = fetch_byte(cpu); }) // LD D,d8
     CASE(0x17, {
@@ -158,6 +162,7 @@ uint8_t tick_once(struct cpu* const cpu) {
     }) // RLA
     CASE(0x18, { jump_relative(cpu); }) // JR r8
     CASE(0x1A, { REG(a) = deref_load(cpu, REG(de)); }) // LD A,(DE)
+    CASE(0x1C, { inc(cpu, &REG(e)); }) // INC E
     CASE(0x1D, { dec(cpu, &REG(e)); }) // DEC E
     CASE(0x1E, { REG(e) = fetch_byte(cpu); }) // LD E,d8
     CASE(0x20, { conditional_jump_relative(cpu, !REG(f.z)); }) // JR NZ,r8
@@ -167,11 +172,13 @@ uint8_t tick_once(struct cpu* const cpu) {
     CASE(0x24, { inc(cpu, &REG(h)); }) // INC H
     CASE(0x26, { REG(h) = fetch_byte(cpu); }) // LD H,d8
     CASE(0x28, { conditional_jump_relative(cpu, REG(f.z)); }) // JR Z,r8
+    CASE(0x2A, { REG(a) = deref_load(cpu, REG(hl)++ ); }) // LD A,(HL+)
     CASE(0x2E, { REG(l) = fetch_byte(cpu); }) // LD L,d8
     CASE(0x31, { REG(sp) = fetch_word(cpu); }) // LD SP,d16
     CASE(0x32, { deref_store(cpu, REG(hl)--, REG(a)); }) // LD (HL-),A
     CASE(0x3D, { dec(cpu, &REG(a)); }) // DEC A
     CASE(0x3E, { REG(a) = fetch_byte(cpu); }) // LD A,d8
+    CASE(0x47, { REG(b) = REG(a); }) // LD B,A
     CASE(0x4F, { REG(c) = REG(a); }) // LD C,A
     CASE(0x57, { REG(d) = REG(a); }) // LD D,A
     CASE(0x67, { REG(h) = REG(a); }) // LD H,A
@@ -200,11 +207,19 @@ uint8_t tick_once(struct cpu* const cpu) {
     CASE(0xE0, {
         deref_store(cpu, 0xFF00 | fetch_byte(cpu), REG(a));
     }) // LDH (a8),A
+    CASE(0xE1, { REG(hl) = pop(cpu); }) // POP HL
     CASE(0xE2, { deref_store(cpu, 0xFF00 | REG(c), REG(a)); }) // LD (C),A
+    CASE(0xE5, {
+      push(cpu, REG(hl));
+      // This is weird
+      cpu->tick_cycles += 4;
+    }) // PUSH HL
     CASE(0xEA, { deref_store(cpu, fetch_word(cpu), REG(a)); }) // LD (a16),A
     CASE(0xF0, {
-        REG(a) = deref_load(cpu, 0xFF00 | fetch_byte(cpu));
+      REG(a) = deref_load(cpu, 0xFF00 | fetch_byte(cpu));
     }) // LDH A,(a8)
+    CASE(0xF1, { REG(af) = pop(cpu); }) // POP AF
+    CASE(0xF3, { cpu->interrupts_enabled = 0; }) // DI
     CASE(0xF5, {
       push(cpu, REG(af));
       // This is weird
@@ -231,8 +246,9 @@ void init_cpu(struct cpu* const restrict cpu, struct mmu* const mmu) {
   // Don't jump the pc forward if it looks like we might be running just the
   // BIOS.
   if (!mmu->has_bios && mmu->rom_size != 256) {
-    // TODO: at the end of dmg bios, looks like af is 0x0101
-    REG(af) = 0x01B0;
+    // TODO: is this the correct value of F at the end of BIOS?
+    // TODO: might games depend on which specific bits are which flags?
+    REG(af) = 0x010D;
     REG(bc) = 0x0013;
     REG(de) = 0x00D8;
     REG(hl) = 0x014D;
