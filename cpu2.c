@@ -21,44 +21,23 @@ static void pflags (const int level, const struct flags f) {
 
 static void cb(struct cpu* const cpu);
 
-// Fetches the next byte, incrementing the PC.
-static uint8_t fetch_byte(struct cpu* const cpu) {
+static uint8_t deref_load(struct cpu* const cpu, const uint16_t addr) {
   cpu->tick_cycles += 4;
-  return rb(cpu->mmu, REG(pc)++);
+  return rb(cpu->mmu, addr);
 }
-static uint16_t fetch_word(struct cpu* const cpu) {
-  return (uint16_t)(((uint16_t)fetch_byte(cpu)) |
-                    (((uint16_t)fetch_byte(cpu)) << 8));
-}
-static void jump(struct cpu* const cpu, const uint16_t addr) {
-  cpu->tick_cycles += 4;
-  REG(pc) = addr;
-  LOG(6, "jumping to " PRIshort "\n", REG(pc));
-}
-static void jump_relative(struct cpu* const cpu) {
-  // Its relative to the end of the JR inst. At this point, we've already
-  // advanced the PC reading the opcode.
-  jump(cpu, (uint16_t)(REG(pc) + (int8_t)(fetch_byte(cpu))) + 1U);
-}
-static void conditional_jump_relative(struct cpu* const cpu,
-                                      const uint8_t cond) {
-  if (cond) {
-    jump_relative(cpu);
-  } else {
-    LOG(6, "not jumping\n");
-    ++REG(pc);
-  }
-}
-
 static void deref_store(struct cpu* const cpu,
                         const uint16_t addr,
                         const uint8_t value) {
   cpu->tick_cycles += 4;
   wb(cpu->mmu, addr, value);
 }
-static uint8_t deref_load(struct cpu* const cpu, const uint16_t addr) {
-  cpu->tick_cycles += 4;
-  return rb(cpu->mmu, addr);
+// Fetches the next byte, incrementing the PC.
+static uint8_t fetch_byte(struct cpu* const cpu) {
+  return deref_load(cpu, REG(pc)++);
+}
+static uint16_t fetch_word(struct cpu* const cpu) {
+  return (uint16_t)(((uint16_t)fetch_byte(cpu)) |
+                    (((uint16_t)fetch_byte(cpu)) << 8));
 }
 static void push(struct cpu* const cpu, const uint16_t value) {
   LOG(6, "push " PRIshort " @ " PRIshort "\n", value, REG(sp));
@@ -72,14 +51,32 @@ static uint16_t pop(struct cpu* const cpu) {
   LOG(6, "pop " PRIshort " @ " PRIshort "\n", value, REG(sp));
   return value;
 }
-
+static void jump(struct cpu* const cpu, const uint16_t addr) {
+  REG(pc) = addr;
+  LOG(6, "jumping to " PRIshort "\n", REG(pc));
+}
+static void conditional_jump(struct cpu* const cpu, const uint16_t addr,
+    const uint8_t cond) {
+  assert(cond == 0 || cond == 1);
+  if (cond) {
+    cpu->tick_cycles += 4;
+    jump(cpu, addr);
+  }
+}
+static void conditional_jump_relative(struct cpu* const cpu,
+    const uint8_t cond) {
+  assert(cond == 0 || cond == 1);
+  const int8_t r8 = (int8_t)fetch_byte(cpu);
+  const uint16_t addr = (uint16_t)((int16_t)REG(pc) + r8);
+  conditional_jump(cpu, addr, cond);
+}
 static void call(struct cpu* const cpu, const uint8_t cond) {
   assert(cond == 0 || cond == 1);
   // Looks like the cycle penalty is paid even if we don't take the branch
   const uint16_t addr = fetch_word(cpu);
   if (cond) {
     push(cpu, REG(pc));
-    jump(cpu, addr);
+    conditional_jump(cpu, addr, cond);
   }
 }
 
@@ -182,7 +179,7 @@ uint8_t tick_once(struct cpu* const cpu) {
       rotate_left(cpu, &REG(a));
       REG(f.z) = 0;
     }) // RLA
-    CASE(0x18, { jump_relative(cpu); }) // JR r8
+    CASE(0x18, { conditional_jump_relative(cpu, 1); }) // JR r8
     CASE(0x1A, { REG(a) = deref_load(cpu, REG(de)); }) // LD A,(DE)
     CASE(0x1C, { inc(cpu, &REG(e)); }) // INC E
     CASE(0x1D, { dec(cpu, &REG(e)); }) // DEC E
