@@ -61,12 +61,15 @@ static void conditional_jump(struct cpu* const cpu, const uint16_t addr,
   if (cond) {
     cpu->tick_cycles += 4;
     jump(cpu, addr);
+  } else {
+    LOG(6, "not jumping\n");
   }
 }
 static void conditional_jump_relative(struct cpu* const cpu,
     const uint8_t cond) {
   assert(cond == 0 || cond == 1);
   const int8_t r8 = (int8_t)fetch_byte(cpu);
+  assert(!((r8 == -2) && cond)); // inf loop
   const uint16_t addr = (uint16_t)((int16_t)REG(pc) + r8);
   conditional_jump(cpu, addr, cond);
 }
@@ -249,23 +252,63 @@ uint8_t tick_once(struct cpu* const cpu) {
       dec(cpu, &x);
       deref_store(cpu, REG(hl), x);
     }) // DEC (HL)
+    CASE(0x3C, { inc(cpu, &REG(a)); }) // INC A
     CASE(0x3D, { dec(cpu, &REG(a)); }) // DEC A
     CASE(0x3E, { REG(a) = fetch_byte(cpu); }) // LD A,d8
+    CASE(0x40, { REG(b) = REG(b); }) // LD B,B
+    CASE(0x41, { REG(b) = REG(c); }) // LD B,C
+    CASE(0x42, { REG(b) = REG(d); }) // LD B,D
+    CASE(0x43, { REG(b) = REG(e); }) // LD B,E
+    CASE(0x44, { REG(b) = REG(h); }) // LD B,H
+    CASE(0x45, { REG(b) = REG(l); }) // LD B,L
     CASE(0x46, { REG(b) = deref_load(cpu, REG(hl)); }) // LD B,(HL)
     CASE(0x47, { REG(b) = REG(a); }) // LD B,A
+    CASE(0x48, { REG(c) = REG(b); }) // LD C,B
+    CASE(0x49, { REG(c) = REG(c); }) // LD C,C
+    CASE(0x4A, { REG(c) = REG(d); }) // LD C,D
+    CASE(0x4B, { REG(c) = REG(e); }) // LD C,E
+    CASE(0x4C, { REG(c) = REG(h); }) // LD C,H
+    CASE(0x4D, { REG(c) = REG(l); }) // LD C,L
     CASE(0x4E, { REG(c) = deref_load(cpu, REG(hl)); }) // LD C,(HL)
     CASE(0x4F, { REG(c) = REG(a); }) // LD C,A
+    CASE(0x50, { REG(d) = REG(b); }) // LD D,B
+    CASE(0x51, { REG(d) = REG(c); }) // LD D,C
+    CASE(0x52, { REG(d) = REG(d); }) // LD D,D
+    CASE(0x53, { REG(d) = REG(e); }) // LD D,E
+    CASE(0x54, { REG(d) = REG(h); }) // LD D,H
+    CASE(0x55, { REG(d) = REG(l); }) // LD D,L
     CASE(0x56, { REG(d) = deref_load(cpu, REG(hl)); }) // LD D,(HL)
     CASE(0x57, { REG(d) = REG(a); }) // LD D,A
+    CASE(0x58, { REG(e) = REG(b); }) // LD E,B
+    CASE(0x59, { REG(e) = REG(c); }) // LD E,C
+    CASE(0x5A, { REG(e) = REG(d); }) // LD E,D
+    CASE(0x5B, { REG(e) = REG(e); }) // LD E,E
+    CASE(0x5C, { REG(e) = REG(h); }) // LD E,H
     CASE(0x5D, { REG(e) = REG(l); }) // LD E,L
+    CASE(0x5E, { REG(e) = deref_load(cpu, REG(hl)); }) // LD E,(HL)
     CASE(0x5F, { REG(e) = REG(a); }) // LD E,A
+    CASE(0x60, { REG(h) = REG(b); }) // LD H,B
+    CASE(0x61, { REG(h) = REG(c); }) // LD H,C
+    CASE(0x62, { REG(h) = REG(d); }) // LD H,D
+    CASE(0x63, { REG(h) = REG(e); }) // LD H,E
+    CASE(0x64, { REG(h) = REG(h); }) // LD H,H
+    CASE(0x65, { REG(h) = REG(l); }) // LD H,L
+    CASE(0x66, { REG(h) = deref_load(cpu, REG(hl)); }) // LD H,(HL)
     CASE(0x67, { REG(h) = REG(a); }) // LD H,A
+    CASE(0x68, { REG(l) = REG(b); }) // LD L,B
+    CASE(0x69, { REG(l) = REG(c); }) // LD L,C
+    CASE(0x6A, { REG(l) = REG(d); }) // LD L,D
+    CASE(0x6B, { REG(l) = REG(e); }) // LD L,E
+    CASE(0x6C, { REG(l) = REG(h); }) // LD L,H
+    CASE(0x6D, { REG(l) = REG(l); }) // LD L,L
     CASE(0x6E, { REG(l) = deref_load(cpu, REG(hl)); }) // LD L,(HL)
     CASE(0x6F, { REG(l) = REG(a); }) // LD L,A
     CASE(0x70, { deref_store(cpu, REG(hl), REG(b)); }) // LD (HL),B
     CASE(0x71, { deref_store(cpu, REG(hl), REG(c)); }) // LD (HL),C
     CASE(0x72, { deref_store(cpu, REG(hl), REG(d)); }) // LD (HL),D
     CASE(0x73, { deref_store(cpu, REG(hl), REG(e)); }) // LD (HL),E
+    CASE(0x74, { deref_store(cpu, REG(hl), REG(h)); }) // LD (HL),H
+    CASE(0x75, { deref_store(cpu, REG(hl), REG(l)); }) // LD (HL),L
     CASE(0x77, { deref_store(cpu, REG(hl), REG(a)); }) // LD (HL),A
     CASE(0x78, { REG(a) = REG(b); }) // LD A,B
     CASE(0x79, { REG(a) = REG(c); }) // LD A,C
@@ -274,11 +317,14 @@ uint8_t tick_once(struct cpu* const cpu) {
     CASE(0x7C, { REG(a) = REG(h); }) // LD A,H
     CASE(0x7D, { REG(a) = REG(l); }) // LD A,L
     CASE(0x7E, { REG(a) = deref_load(cpu, REG(hl)); }) // LD A,(HL)
+    CASE(0x7F, { REG(a) = REG(a); }) // LD A,A
     CASE(0x86, { add(cpu, deref_load(cpu, REG(hl)), 0); }) // ADD (HL)
     CASE(0x90, { REG(a) = subtract(cpu, REG(b), 0); }) // SUB B
     CASE(0xA9, { xor(cpu, REG(c)); }) // XOR C
+    CASE(0xAD, { xor(cpu, REG(l)); }) // XOR L
     CASE(0xAE, { xor(cpu, deref_load(cpu, REG(hl))); }) // XOR (HL)
     CASE(0xAF, { xor(cpu, REG(a)); }) // XOR A
+    CASE(0xB0, { or(cpu, REG(b)); }) // OR B
     CASE(0xB1, { or(cpu, REG(c)); }) // OR C
     CASE(0xB6, { or(cpu, deref_load(cpu, REG(hl))); }) // OR (HL)
     CASE(0xB7, { or(cpu, REG(a)); }) // OR A
@@ -307,6 +353,7 @@ uint8_t tick_once(struct cpu* const cpu) {
       cpu->tick_cycles += 4;
     }) // PUSH DE
     CASE(0xD6, { REG(a) = subtract(cpu, fetch_byte(cpu), 0); }) // SUB d8
+    CASE(0xD8, { ret(cpu, REG(f.c)); }) // RET C
     CASE(0xE0, {
         deref_store(cpu, 0xFF00 | fetch_byte(cpu), REG(a));
     }) // LDH (a8),A
