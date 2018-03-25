@@ -169,6 +169,15 @@ static void add(struct cpu* const cpu, const uint8_t x, const uint8_t carry) {
   REG(f.c) = sum > 0xFF;
   REG(f.h) = y > 0x0F;
 }
+static void add16(struct cpu* const cpu, uint16_t* const a, const uint16_t b) {
+  cpu->tick_cycles += 4;
+  const uint32_t x = *a + b;
+  const uint32_t y = (*a & 0x0FFF) + (b & 0x0FFF);
+  REG(f.n) = 0;
+  REG(f.c) = x > 0xFFFF;
+  REG(f.h) = y > 0x0FFF;
+  *a = (uint16_t)x;
+}
 
 uint8_t tick_once(struct cpu* const cpu) {
 #ifndef NDEBUG
@@ -184,7 +193,10 @@ uint8_t tick_once(struct cpu* const cpu) {
     CASE(0x00, {}) // NOP
     CASE(0x01, { REG(bc) = fetch_word(cpu); }) // LD BC,d16
     CASE(0x02, { deref_store(cpu, REG(bc), REG(a)); }) // LD (BC),A
-    CASE(0x03, { ++REG(bc); }) // INC BC
+    CASE(0x03, {
+      ++REG(bc);
+      cpu->tick_cycles += 4;
+    }) // INC BC
     CASE(0x04, { inc(cpu, &REG(b)); }) // INC B
     CASE(0x05, { dec(cpu, &REG(b)); }) // DEC B
     CASE(0x06, { REG(b) = fetch_byte(cpu); }) // LD B,d8
@@ -193,7 +205,10 @@ uint8_t tick_once(struct cpu* const cpu) {
     CASE(0x0E, { REG(c) = fetch_byte(cpu); }) // LD C,d8
     CASE(0x11, { REG(de) = fetch_word(cpu); }) // LD DE,d16
     CASE(0x12, { deref_store(cpu, REG(de), REG(a)); }) // LD (DE),A
-    CASE(0x13, { ++REG(de); }) // INC DE
+    CASE(0x13, {
+      ++REG(de);
+      cpu->tick_cycles += 4;
+    }) // INC DE
     CASE(0x14, { inc(cpu, &REG(d)); }) // INC D
     CASE(0x15, { dec(cpu, &REG(d)); }) // DEC D
     CASE(0x16, { REG(d) = fetch_byte(cpu); }) // LD D,d8
@@ -213,11 +228,15 @@ uint8_t tick_once(struct cpu* const cpu) {
     CASE(0x20, { conditional_jump_relative(cpu, !REG(f.z)); }) // JR NZ,r8
     CASE(0x21, { REG(hl) = fetch_word(cpu); }) // LD HL,d16
     CASE(0x22, { deref_store(cpu, REG(hl)++, REG(a)); }) // LD (HL+),A
-    CASE(0x23, { ++REG(hl); }) // INC HL
+    CASE(0x23, {
+      ++REG(hl);
+      cpu->tick_cycles += 4;
+    }) // INC HL
     CASE(0x24, { inc(cpu, &REG(h)); }) // INC H
     CASE(0x25, { dec(cpu, &REG(h)); }) // DEC H
     CASE(0x26, { REG(h) = fetch_byte(cpu); }) // LD H,d8
     CASE(0x28, { conditional_jump_relative(cpu, REG(f.z)); }) // JR Z,r8
+    CASE(0x29, { add16(cpu, &REG(hl), REG(hl)); }) // ADD HL,HL
     CASE(0x2A, { REG(a) = deref_load(cpu, REG(hl)++); }) // LD A,(HL+)
     CASE(0x2C, { inc(cpu, &REG(l)); }) // INC L
     CASE(0x2D, { dec(cpu, &REG(l)); }) // DEC L
@@ -238,6 +257,7 @@ uint8_t tick_once(struct cpu* const cpu) {
     CASE(0x4F, { REG(c) = REG(a); }) // LD C,A
     CASE(0x56, { REG(d) = deref_load(cpu, REG(hl)); }) // LD D,(HL)
     CASE(0x57, { REG(d) = REG(a); }) // LD D,A
+    CASE(0x5D, { REG(e) = REG(l); }) // LD E,L
     CASE(0x5F, { REG(e) = REG(a); }) // LD E,A
     CASE(0x67, { REG(h) = REG(a); }) // LD H,A
     CASE(0x6E, { REG(l) = deref_load(cpu, REG(hl)); }) // LD L,(HL)
@@ -245,6 +265,7 @@ uint8_t tick_once(struct cpu* const cpu) {
     CASE(0x70, { deref_store(cpu, REG(hl), REG(b)); }) // LD (HL),B
     CASE(0x71, { deref_store(cpu, REG(hl), REG(c)); }) // LD (HL),C
     CASE(0x72, { deref_store(cpu, REG(hl), REG(d)); }) // LD (HL),D
+    CASE(0x73, { deref_store(cpu, REG(hl), REG(e)); }) // LD (HL),E
     CASE(0x77, { deref_store(cpu, REG(hl), REG(a)); }) // LD (HL),A
     CASE(0x78, { REG(a) = REG(b); }) // LD A,B
     CASE(0x79, { REG(a) = REG(c); }) // LD A,C
@@ -252,6 +273,7 @@ uint8_t tick_once(struct cpu* const cpu) {
     CASE(0x7B, { REG(a) = REG(e); }) // LD A,E
     CASE(0x7C, { REG(a) = REG(h); }) // LD A,H
     CASE(0x7D, { REG(a) = REG(l); }) // LD A,L
+    CASE(0x7E, { REG(a) = deref_load(cpu, REG(hl)); }) // LD A,(HL)
     CASE(0x86, { add(cpu, deref_load(cpu, REG(hl)), 0); }) // ADD (HL)
     CASE(0x90, { REG(a) = subtract(cpu, REG(b), 0); }) // SUB B
     CASE(0xA9, { xor(cpu, REG(c)); }) // XOR C
@@ -296,6 +318,7 @@ uint8_t tick_once(struct cpu* const cpu) {
       cpu->tick_cycles += 4;
     }) // PUSH HL
     CASE(0xE6, { and(cpu, fetch_byte(cpu)); }) // AND d8
+    CASE(0xE9, { jump(cpu, REG(hl)); }) // JP HL
     CASE(0xEA, { deref_store(cpu, fetch_word(cpu), REG(a)); }) // LD (a16),A
     CASE(0xEE, { xor(cpu, fetch_byte(cpu)); }) // XOR d8
     CASE(0xF0, {
@@ -354,6 +377,10 @@ static void cb(struct cpu* const cpu) {
       rotate_right(cpu, &REG(d));
       REG(f.z) = !REG(d);
     }) // RR D
+    CASE(0x1B, {
+      rotate_right(cpu, &REG(e));
+      REG(f.z) = !REG(e);
+    }) // RR E
     CASE(0x38, { shift_right_logical(cpu, &REG(b)); }) // SRL B
     CASE(0x7C, { bit(cpu, REG(h), 7); }) // BIT 7,H
     CASE(0x11, {
