@@ -1,936 +1,395 @@
 #include "cpu.h"
 
 #include <assert.h>
-#include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "logging.h"
 
-#define REG(reg) lr35902->registers.reg
-#define DEREF_READ(reg) rb(lr35902->mmu, REG(reg))
+#define REG(x) cpu->registers.x
+#define CASE(op, block) \
+  case op: \
+    block; \
+    break;
 
-static uint8_t bit (const unsigned index, const uint8_t src) {
+__attribute__((unused))
+static void pflags (const int level, const struct flags f) {
+  if (level <= LOG_LEVEL) {
+      printf("Flags (Z N H C) (%u %u %u %u)\n", f.z, f.n, f.h, f.c);
+    }
+}
+
+static void cb(struct cpu* const cpu);
+
+static uint8_t deref_load(struct cpu* const cpu, const uint16_t addr) {
+  cpu->tick_cycles += 4;
+  return rb(cpu->mmu, addr);
+}
+static void deref_store(struct cpu* const cpu,
+                        const uint16_t addr,
+                        const uint8_t value) {
+  cpu->tick_cycles += 4;
+  wb(cpu->mmu, addr, value);
+}
+// Fetches the next byte, incrementing the PC.
+static uint8_t fetch_byte(struct cpu* const cpu) {
+  return deref_load(cpu, REG(pc)++);
+}
+static uint16_t fetch_word(struct cpu* const cpu) {
+  return (uint16_t)(((uint16_t)fetch_byte(cpu)) |
+                    (((uint16_t)fetch_byte(cpu)) << 8));
+}
+static void push(struct cpu* const cpu, const uint16_t value) {
+  LOG(6, "push " PRIshort " @ " PRIshort "\n", value, REG(sp));
+  deref_store(cpu, --REG(sp), value >> 8);
+  deref_store(cpu, --REG(sp), value & 0xFF);
+}
+static uint16_t pop(struct cpu* const cpu) {
+  uint16_t value = deref_load(cpu, REG(sp)++);
+  // Must be a second statement due to sequence points
+  value |= deref_load(cpu, REG(sp)++) << 8;
+  LOG(6, "pop " PRIshort " @ " PRIshort "\n", value, REG(sp));
+  return value;
+}
+static void jump(struct cpu* const cpu, const uint16_t addr) {
+  REG(pc) = addr;
+  LOG(6, "jumping to " PRIshort "\n", REG(pc));
+}
+static void conditional_jump(struct cpu* const cpu, const uint16_t addr,
+    const uint8_t cond) {
+  assert(cond == 0 || cond == 1);
+  if (cond) {
+    cpu->tick_cycles += 4;
+    jump(cpu, addr);
+  }
+}
+static void conditional_jump_relative(struct cpu* const cpu,
+    const uint8_t cond) {
+  assert(cond == 0 || cond == 1);
+  const int8_t r8 = (int8_t)fetch_byte(cpu);
+  const uint16_t addr = (uint16_t)((int16_t)REG(pc) + r8);
+  conditional_jump(cpu, addr, cond);
+}
+static void call(struct cpu* const cpu, const uint8_t cond) {
+  assert(cond == 0 || cond == 1);
+  // Looks like the cycle penalty is paid even if we don't take the branch
+  const uint16_t addr = fetch_word(cpu);
+  if (cond) {
+    push(cpu, REG(pc));
+    conditional_jump(cpu, addr, cond);
+  }
+}
+static void ret(struct cpu* const cpu, const uint8_t cond) {
+  assert(cond == 0 || cond == 1);
+  if (cond) {
+    cpu->tick_cycles += 4;
+    conditional_jump(cpu, pop(cpu), cond);
+  }
+}
+
+static uint8_t get_bit(const uint8_t src, const uint8_t index) {
   assert(index < 8);
   return (src >> index) & 1U;
 }
 
-static uint8_t rotate_right (struct cpu* const lr35902, const uint8_t t1) {
-  const uint8_t carry = bit(0, t1);
-  const uint8_t t2 = (REG(f.c) << 7) | t1 >> 1;
+// logical operations
+static void and(struct cpu* const cpu, const uint8_t x) {
+  REG(a) &= x;
+  REG(f.z) = !REG(a);
+  REG(f.n) = REG(f.c) = 0;
+  REG(f.h) = 1; // this is weird
+}
+static void dec(struct cpu* const cpu, uint8_t* const x) {
+  --*x;
+  REG(f.z) = !*x;
+  REG(f.n) = 1;
+  REG(f.h) = (*x & 0x0F) == 0x0F;
+}
+static void inc(struct cpu* const cpu, uint8_t* const x) {
+  ++*x;
+  REG(f.z) = !*x;
+  REG(f.n) = 0;
+  REG(f.h) = (*x & 0x0F) == 0x00;
+}
+static void xor(struct cpu* const cpu, const uint8_t x) {
+  REG(a) ^= x;
+  REG(f.z) = !REG(a);
+  REG(f.n) = REG(f.h) = REG(f.c) = 0;
+}
+static void or(struct cpu* const cpu, const uint8_t x) {
+  REG(a) |= x;
+  REG(f.z) = !REG(a);
+  REG(f.n) = REG(f.h) = REG(f.c) = 0;
+}
+static void bit(struct cpu* const cpu, const uint8_t x, const uint8_t index) {
+  REG(f.z) = !get_bit(x, index);
+  REG(f.n) = 0;
+  REG(f.h) = 1;
+}
+static void rotate_left(struct cpu* const cpu, uint8_t* const x) {
+  const uint8_t carry = get_bit(*x, 7);
+  *x = (*x << 1) | REG(f.c);
+  // REG(f.z) is handled different when destination register is A
   REG(f.c) = carry;
   REG(f.h) = REG(f.n) = 0;
-  REG(f.z) = t2 == 0;
-  return t2;
 }
-
-/*static uint8_t rotate_right_through_carry (struct cpu* const lr35902,*/
-    /*const uint8_t t1) {*/
-  /*const uint8_t t2 = (t1 << 7) | (t1 >> 1);*/
-  /*REG(f.c) = bit(7, t2);*/
-  /*REG(f.h) = REG(f.n) = 0;*/
-  /*REG(f.z) = t2 == 0;*/
-  /*return t2;*/
-/*}*/
-
-static uint8_t shift_right_logical (struct cpu* const lr35902, const uint8_t t1) {
-  const uint8_t carry = bit(0, t1);
-  const uint8_t t2 = t1 >> 1;
+static void rotate_right(struct cpu* const cpu, uint8_t* const x) {
+  const uint8_t carry = get_bit(*x, 0);
+  *x = (REG(f.c) << 7) | (*x >> 1);
+  // REG(f.z) is handled different when destination register is A
+  REG(f.n) = REG(f.h) = 0;
   REG(f.c) = carry;
-  REG(f.h) = REG(f.n) = 0;
-  REG(f.z) = t2 == 0;
-  return t2;
 }
-
-/*static uint8_t shift_right_arithmetic (struct cpu* const lr35902, const uint8_t t1) {*/
-  /*const uint8_t carry = bit(0, t1);*/
-  /*const uint8_t t2 = (uint8_t)(((int8_t)t1) >> 1);*/
-  /*REG(f.c) = carry;*/
-  /*REG(f.h) = REG(f.n) = 0;*/
-  /*REG(f.z) = t2 == 0;*/
-  /*return t2;*/
-/*}*/
-
-static uint8_t rotate_left (struct cpu* const lr35902, const uint8_t t1) {
-  const uint8_t carry = bit(7, t1);
-  const uint8_t t2 = (t1 << 1) | REG(f.c);
+static void shift_right_logical(struct cpu* const cpu, uint8_t* const x) {
+  const uint8_t carry = get_bit(*x, 0);
+  *x >>= 1;
+  REG(f.z) = !*x;
+  REG(f.n) = REG(f.h) = 0;
   REG(f.c) = carry;
-  REG(f.h) = REG(f.n) = 0;
-  return t2;
 }
 
-static uint8_t rotate_left_through_carry (struct cpu* const lr35902,
-    const uint8_t t1) {
-  const uint8_t t2 = (t1 << 1) | (t1 >> 7);
-  REG(f.c) = bit(0, t2);
-  REG(f.h) = REG(f.n) = 0;
-  REG(f.z) = t2 == 0;
-  return t2;
+// SUB/SBC should reassign result, CP should not
+static uint8_t subtract(struct cpu* const cpu, const uint8_t x, const uint8_t carry) {
+  assert(carry == 0 || carry == 1);
+  const uint16_t diff = REG(a) - x - carry;
+  const uint16_t half = (REG(a) & 0x0F) - (x & 0x0F) - carry;
+  REG(f.z) = ((uint8_t)diff) == 0;
+  REG(f.n) = 1;
+  REG(f.c) = diff > 0xFF;
+  REG(f.h) = half > 0x0F;
+  return (uint8_t)diff;
 }
-
-static void pflags (const int level, const struct flags f) {
-  if (level <= LOG_LEVEL) {
-    printf("Flags (Z N H C) (%u %u %u %u)\n", f.z, f.n, f.h, f.c);
-  }
-}
-
-static uint16_t load_d16 (const struct cpu* const lr35902) {
-  return rw(lr35902->mmu, REG(pc) + 1);
-}
-
-static uint8_t load_d8 (const struct cpu* const lr35902) {
-  return rb(lr35902->mmu, REG(pc) + 1);
-}
-
-static int8_t load_r8 (const struct cpu* const cpu) {
-  // r8 are relative values and should be interpreted as signed.
-  return (int8_t) load_d8(cpu);
-}
-
-static uint16_t pop (struct cpu* const lr35902) {
-  const uint16_t ret = rw(lr35902->mmu, REG(sp));
-  REG(sp) += 2;
-  LOG(6, "pop  " PRIshort " @ " PRIshort "\n", ret, REG(sp));
-  return ret;
-}
-
-static void push (struct cpu* const lr35902, const uint16_t value) {
-  LOG(6, "push " PRIshort " @ " PRIshort "\n", value, REG(sp));
-  REG(sp) -= 2;
-  ww(lr35902->mmu, REG(sp), value);
-}
-
-// CB prefixed instructions
-static void CB_BIT_7_H (struct cpu* const lr35902) {
-  LOG(5, "BIT 7,H\n");
-  LOG(6, "h: %d\n", lr35902->registers.h);
-  LOG(6, "z: %d\n", lr35902->registers.f.z);
-  lr35902->registers.f.z = (lr35902->registers.h & (1 << 6)) != 0;
-  LOG(6, "z: %d\n", lr35902->registers.f.z);
-  lr35902->registers.f.n = 0;
-  lr35902->registers.f.h = 0;
-}
-
-static void CB_RL_C (struct cpu* const lr35902) {
-  LOG(5, "RL C\n");
-  REG(c) = rotate_left(lr35902, REG(c));
-}
-
-static void CB_RR_C (struct cpu* const lr35902) {
-  LOG(5, "RR C\n");
-  REG(c) = rotate_right(lr35902, REG(c));
-}
-
-static void CB_RR_D (struct cpu* const lr35902) {
-  LOG(5, "RR D\n");
-  REG(d) = rotate_right(lr35902, REG(d));
-}
-
-static void CB_SWAP_A (struct cpu* const lr35902) {
-  LOG(5, "SWAP\n");
-  const uint8_t x = lr35902->registers.a;
-  lr35902->registers.a = (x & 0x0F) << 4 | (x & 0xF0) >> 4;
-  lr35902->registers.f.z = !lr35902->registers.a;
-  lr35902->registers.f.n = 0;
-  lr35902->registers.f.h = 0;
-  lr35902->registers.f.c = 0;
-}
-
-static void CB_SRL_A (struct cpu* const lr35902) {
-  LOG(5, "SRL A\n");
-  REG(a) = shift_right_logical(lr35902, REG(a));
-}
-
-static void CB_SRL_B (struct cpu* const lr35902) {
-  LOG(5, "SRL B\n");
-  REG(b) = shift_right_logical(lr35902, REG(b));
-}
-
-static const instr cb_opcodes [256] = {
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 0x
-  0, CB_RL_C, 0, 0, 0, 0, 0, 0, 0, CB_RR_C, CB_RR_D, 0, 0, 0, 0, 0, // 1x
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 2x
-  0, 0, 0, 0, 0, 0, 0, CB_SWAP_A, CB_SRL_B, 0, 0, 0, 0, 0, 0, CB_SRL_A, // 3x
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 4x
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 5x
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 6x
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, CB_BIT_7_H, 0, 0, 0, // 7x
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 8x
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 9x
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // Ax
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // Bx
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // Cx
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // Dx
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // Ex
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // Fx
-};
-
-instr decode_cb (const struct cpu* const cpu) {
-  uint16_t pc = cpu->registers.pc;
-  uint8_t opcode = rb(cpu->mmu, pc);
-  PBYTE(4, opcode);
-  instr i = cb_opcodes[opcode];
-#ifndef NDEBUG
-  if (i == 0) {
-    fprintf(stderr, "Unknown opcode for CB PREFIX " PRIbyte " @ " PRIshort "\n",
-        opcode, pc);
-  }
-#endif
-  assert(i != 0);
-  return i;
-}
-
-static void handle_cb (struct cpu* const cpu) {
-  ++cpu->registers.pc;
-  instr i = decode_cb(cpu);
-  i(cpu);
-  ++cpu->registers.pc;
-}
-
-// normal instructions (non-cb)
-static void NOP (struct cpu* const lr35902) {
-  LOG(5, "NOP\n");
-  ++lr35902->registers.pc;
-}
-
-#define INC_x(x, X)\
-static void INC_ ## X (struct cpu* const lr35902) { \
-  LOG(5, "INC " #X "\n"); \
-  LOG(6, PRIbyte "\n", REG(x)); \
-  ++REG(x); \
-  LOG(6, PRIbyte "\n", REG(x)); \
-  lr35902->registers.f.z = lr35902->registers.x == 0; \
-  lr35902->registers.f.n = 0; \
-  lr35902->registers.f.h = (lr35902->registers.x & 0x10) == 0x10; \
-  ++REG(pc); \
-}
-
-INC_x(a, A);
-INC_x(b, B);
-INC_x(c, C);
-INC_x(d, D);
-INC_x(e, E);
-INC_x(h, H);
-INC_x(l, L);
-
-#define INC_xy(xy, XY)\
-static void INC_ ## XY (struct cpu* const lr35902) { \
-  LOG(5, "INC " #XY "\n"); \
-  LOG(6, PRIshort "\n", REG(xy)); \
-  ++REG(xy); \
-  LOG(6, PRIshort "\n", REG(xy)); \
-  ++REG(pc); \
-}
-
-INC_xy(bc, BC);
-INC_xy(de, DE);
-INC_xy(hl, HL);
-
-#define DEC_x(x, X)\
-static void DEC_ ## X (struct cpu* const lr35902) {\
-  LOG(5, "DEC " #X "\n"); \
-  LOG(6, PRIbyte "\n", x); \
-  --x; \
-  LOG(6, PRIbyte "\n", x); \
-  lr35902->registers.f.z = x == 0; \
-  lr35902->registers.f.n = 1; \
-  lr35902->registers.f.h = (x & 0x10) == 0x10; \
-  ++lr35902->registers.pc; \
-}
-
-DEC_x(REG(a), A);
-DEC_x(REG(b), B);
-DEC_x(REG(c), C);
-DEC_x(REG(d), D);
-DEC_x(REG(e), E);
-DEC_x(REG(h), H);
-DEC_x(REG(l), L);
-
-static void DEC_DEREF_HL (struct cpu* const lr35902) {
-  LOG(5, "DEC (HL)\n");
-  const uint8_t result = rb(lr35902->mmu, lr35902->registers.hl) - 1;
-  wb(lr35902->mmu, lr35902->registers.hl, result);
-  lr35902->registers.f.z = !result;
-  lr35902->registers.f.n = 1;
-  lr35902->registers.f.h = (result & 0x10) == 0x10;
-  ++lr35902->registers.pc;
-}
-
-
-#define DEC_xy(xy, XY) \
-static void DEC_ ## XY (struct cpu* const lr35902) { \
-  LOG(5, "DEC " #XY "\n"); \
-  PSHORT(6, REG(xy)); \
-  --lr35902->registers.xy; \
-  PSHORT(6, REG(xy)); \
-  ++lr35902->registers.pc; \
-}
-
-DEC_xy(bc, BC);
-
-#define XOR_x(x, X) \
-static void XOR_ ## X (struct cpu* const lr35902) { \
-  LOG(5, "XOR " #X "\n"); \
-  REG(a) ^= x; \
-  REG(f.z) = !REG(a); \
-  REG(f.n) = 0; \
-  REG(f.h) = 0; \
-  REG(f.c) = 0; \
-  ++REG(pc); \
-}
-
-XOR_x(REG(a), A);
-XOR_x(REG(c), C);
-XOR_x(DEREF_READ(hl), DEREF_HL);
-
-static void XOR_d8 (struct cpu* const lr35902) {
-  LOG(5, "XOR d8\n");
-  REG(a) ^= load_d8(lr35902);
+static void add(struct cpu* const cpu, const uint8_t x, const uint8_t carry) {
+  assert(carry == 0 || carry == 1);
+  const uint16_t sum = REG(a) + x + carry;
+  const uint8_t y = (REG(a) & 0x0F) + (x & 0x0F) + carry;
+  REG(a) = (uint8_t)sum;
   REG(f.z) = !REG(a);
   REG(f.n) = 0;
-  REG(f.h) = 0;
-  REG(f.c) = 0;
-  REG(pc) += 2;
+  REG(f.c) = sum > 0xFF;
+  REG(f.h) = y > 0x0F;
+}
+static void add16(struct cpu* const cpu, uint16_t* const a, const uint16_t b) {
+  cpu->tick_cycles += 4;
+  const uint32_t x = *a + b;
+  const uint32_t y = (*a & 0x0FFF) + (b & 0x0FFF);
+  REG(f.n) = 0;
+  REG(f.c) = x > 0xFFFF;
+  REG(f.h) = y > 0x0FFF;
+  *a = (uint16_t)x;
 }
 
-#define ADD_A_x(x, X) \
-static void ADD_A_ ## X (struct cpu* const lr35902) { \
-  LOG(5, "ADD A," #X "\n"); \
-  REG(a) += x; \
-  lr35902->registers.f.z = lr35902->registers.a == 0; \
-  lr35902->registers.f.n = 0; \
-  lr35902->registers.f.h = (lr35902->registers.a & 0x10) == 0x10; \
-  lr35902->registers.f.c = (lr35902->registers.a & 0x80) != 0; \
-  ++REG(pc); \
-}
-
-ADD_A_x(REG(a), A);
-ADD_A_x(DEREF_READ(hl), DEREF_HL);
-
-// because of the +2 pc
-/*ADD_A_x(load_d8(lr35902), d8);*/
-static void ADD_A_d8 (struct cpu* const lr35902) {
-  LOG(5, "ADD A,d8\n");
-  const uint8_t d8 = load_d8(lr35902);
-  LOG(6, "where d8 == " PRIbyte "\n", d8);
-  lr35902->registers.a += d8;
-  lr35902->registers.f.z = lr35902->registers.a == 0;
-  lr35902->registers.f.n = 0;
-  lr35902->registers.f.h = (lr35902->registers.a & 0x10) == 0x10;
-  lr35902->registers.f.c = (lr35902->registers.a & 0x80) != 0;
-  lr35902->registers.pc += 2;
-}
-
-#define ADD_xy_zw(xy, zw, XY, ZW) \
-static void ADD_ ## XY ## _ ## ZW (struct cpu* const lr35902) { \
-  LOG(5, "ADD " #XY "," #ZW "\n"); \
-  REG(xy) += REG(zw); \
-  lr35902->registers.f.n = 0; \
-  lr35902->registers.f.h = (REG(xy) & 0x10) == 0x10; \
-  lr35902->registers.f.c = (REG(xy) & 0x80) != 0; \
-  ++REG(pc); \
-}
-
-ADD_xy_zw(hl, de, HL, DE);
-ADD_xy_zw(hl, hl, HL, HL);
-
-static void ADC_A_d8 (struct cpu* const lr35902) {
-  LOG(5, "ADC A,d8\n");
-  const uint8_t d8 = load_d8(lr35902);
-  LOG(6, "where d8 == " PRIbyte "\n", d8);
-  lr35902->registers.a += d8 + lr35902->registers.f.c;
-  lr35902->registers.f.z = lr35902->registers.a == 0;
-  lr35902->registers.f.n = 0;
-  lr35902->registers.f.h = (lr35902->registers.a & 0x10) == 0x10;
-  lr35902->registers.f.c = (lr35902->registers.a & 0x80) != 0;
-  lr35902->registers.pc += 2;
-}
-
-#define SUB_x(x, X) \
-static void SUB_ ##X (struct cpu* const lr35902) { \
-  LOG(5, "SUB " #X "\n"); \
-  REG(a) -= x; \
-  lr35902->registers.f.z = lr35902->registers.a == 0; \
-  lr35902->registers.f.n = 1; \
-  lr35902->registers.f.h = (lr35902->registers.a & 0x10) == 0x10; \
-  lr35902->registers.f.c = (lr35902->registers.a & 0x80) != 0; \
-  ++REG(pc); \
-}
-
-SUB_x(REG(b), B);
-
-// because of the pc += 2
-/*SUB_x(load_d8(lr35902), d8);*/
-static void SUB_d8 (struct cpu* const lr35902) {
-  LOG(5, "SUB d8\n");
-  const uint8_t d8 = load_d8(lr35902);
-  LOG(6, "where d8 == " PRIbyte "\n", d8);
-  lr35902->registers.a -= d8;
-  lr35902->registers.f.z = lr35902->registers.a == 0;
-  lr35902->registers.f.n = 1;
-  lr35902->registers.f.h = (lr35902->registers.a & 0x10) == 0x10;
-  lr35902->registers.f.c = (lr35902->registers.a & 0x80) != 0;
-  lr35902->registers.pc += 2;
-}
-
-
-#define LD_x_y(x, y, X, Y) \
-static void LD_ ## X ## _ ## Y (struct cpu* const lr35902) { \
-  LOG(5, "LD " #X "," #Y "\n"); \
-  x = y; \
-  PBYTE(6, x); \
-  ++REG(pc); \
-}
-
-LD_x_y(REG(a), REG(b), A, B);
-LD_x_y(REG(a), REG(c), A, C);
-LD_x_y(REG(a), REG(d), A, D);
-LD_x_y(REG(a), REG(e), A, E);
-LD_x_y(REG(a), REG(h), A, H);
-LD_x_y(REG(a), REG(l), A, L);
-LD_x_y(REG(b), REG(a), B, A);
-LD_x_y(REG(b), REG(b), B, B);
-LD_x_y(REG(c), REG(a), C, A);
-LD_x_y(REG(d), REG(a), D, A);
-LD_x_y(REG(e), REG(a), E, A);
-LD_x_y(REG(h), REG(a), H, A);
-LD_x_y(REG(h), REG(b), H, B);
-LD_x_y(REG(l), REG(a), L, A);
-LD_x_y(REG(sp), REG(hl), SP, HL);
-LD_x_y(REG(a), DEREF_READ(de), A, DEREF_DE);
-LD_x_y(REG(a), DEREF_READ(hl), A, DEREF_HL);
-LD_x_y(REG(b), DEREF_READ(hl), B, DEREF_HL);
-LD_x_y(REG(c), DEREF_READ(hl), C, DEREF_HL);
-LD_x_y(REG(d), DEREF_READ(hl), D, DEREF_HL);
-LD_x_y(REG(e), DEREF_READ(hl), E, DEREF_HL);
-LD_x_y(REG(h), DEREF_READ(hl), H, DEREF_HL);
-LD_x_y(REG(l), DEREF_READ(hl), L, DEREF_HL);
-
-#define LD_DEREF_xy_x(xy, x, XY, X) \
-static void LD_DEREF_ ## XY ## _ ## X (struct cpu* const lr35902) { \
-  LOG(5, "LD (" #XY ")," #X "\n"); \
-  wb(lr35902->mmu, REG(xy), REG(x)); \
-  ++REG(pc); \
-}
-
-LD_DEREF_xy_x(de, a, DE, A);
-LD_DEREF_xy_x(hl, a, HL, A);
-LD_DEREF_xy_x(hl, b, HL, B);
-LD_DEREF_xy_x(hl, c, HL, C);
-LD_DEREF_xy_x(hl, d, HL, D);
-
-static void LD_HL_SP_r8 (struct cpu* const lr35902) {
-  LOG(5, "LD HL,SP+r8\n");
-  const uint8_t r8 = load_r8(lr35902);
-  lr35902->registers.hl = lr35902->registers.sp + r8;
-  lr35902->registers.f.z = 0;
-  lr35902->registers.f.n = 0;
-  lr35902->registers.f.h = (lr35902->registers.sp & 0x10) == 0x10;
-  lr35902->registers.f.c = (lr35902->registers.sp & 0x80) != 0;
-  lr35902->registers.pc += 2;
-}
-
-static void LD_DEREF_HL_DEC_A (struct cpu* const lr35902) {
-  LOG(5, "LD (HL-),A\n");
-
-  PBYTE(6, rb(lr35902->mmu, lr35902->registers.hl));
-  wb(lr35902->mmu, lr35902->registers.hl, lr35902->registers.a);
-  PBYTE(6, rb(lr35902->mmu, lr35902->registers.hl));
-
-  PSHORT(6, lr35902->registers.hl);
-  --lr35902->registers.hl;
-  PSHORT(6, lr35902->registers.hl);
-
-  ++lr35902->registers.pc;
-}
-
-static void LD_DEREF_HL_INC_A (struct cpu* const lr35902) {
-  LOG(5, "LD (HL+),A\n");
-
-  PBYTE(6, rb(lr35902->mmu, lr35902->registers.hl));
-  wb(lr35902->mmu, lr35902->registers.hl, lr35902->registers.a);
-  PBYTE(6, rb(lr35902->mmu, lr35902->registers.hl));
-
-  PSHORT(6, lr35902->registers.hl);
-  ++lr35902->registers.hl;
-  PSHORT(6, lr35902->registers.hl);
-
-  ++lr35902->registers.pc;
-}
-
-static void LD_DEREF_HL_d8 (struct cpu* const lr35902) {
-  LOG(5, "LD (HL),d8\n");
-  const uint8_t d8 = load_d8(lr35902);
-  wb(lr35902->mmu, lr35902->registers.hl, d8);
-  lr35902->registers.pc += 2;
-}
-
-static void LD_DEREF_C_A (struct cpu* const lr35902) {
-  LOG(5, "LD (C),A\n");
-
-  // http://www.chrisantonellis.com/files/gameboy/gb-instructions.txt
-  PBYTE(6, rb(lr35902->mmu, lr35902->registers.c + 0xFF00));
-  wb(lr35902->mmu, lr35902->registers.c + 0xFF00, lr35902->registers.a);
-  PBYTE(6, rb(lr35902->mmu, lr35902->registers.c + 0xFF00));
-
-  // Errata in:
-  // http://pastraiser.com/cpu/gameboy/gameboy_opcodes.html
-  // instr is actually length 1, not 2
-  ++lr35902->registers.pc;
-}
-
-static void LDH_DEREF_a8_A (struct cpu* const lr35902) {
-  LOG(5, "LDH (a8),A\n");
-  uint8_t a8 = load_d8(lr35902);
-  LOG(6, "where a8 == ");
-  PBYTE(6, a8);
-
-  wb(lr35902->mmu, a8 + 0xFF00, lr35902->registers.a);
-
-  lr35902->registers.pc += 2;
-}
-
-static void LDH_A_DEREF_a8 (struct cpu* const lr35902) {
-  LOG(5, "LDH A,(a8)\n");
-  uint8_t a8 = load_d8(lr35902);
-  LOG(6, "where a8 == ");
-  PBYTE(6, a8);
-
-  lr35902->registers.a = rb(lr35902->mmu, a8 + 0xFF00);
-  lr35902->registers.pc += 2;
-}
-
-#define LD_x_d8(x, X) \
-static void LD_ ## X ## _d8 (struct cpu* const lr35902) { \
-  LOG(5, "LD " #X ",d8\n"); \
-  x = load_d8(lr35902); \
-  REG(pc) += 2; \
-}
-
-LD_x_d8(REG(a), A);
-LD_x_d8(REG(b), B);
-LD_x_d8(REG(c), C);
-LD_x_d8(REG(d), D);
-LD_x_d8(REG(e), E);
-LD_x_d8(REG(h), H);
-LD_x_d8(REG(l), L);
-
-#define LD_xy_d16(xy, XY) \
-static void LD_ ## XY ## _d16 (struct cpu* const lr35902) {\
-  LOG(5, "LD " #XY ",d16\n"); \
-  xy = load_d16(lr35902); \
-  REG(pc) += 3; \
-}
-
-LD_xy_d16(REG(bc), BC);
-LD_xy_d16(REG(de), DE);
-LD_xy_d16(REG(hl), HL);
-LD_xy_d16(REG(sp), SP);
-
-static void LD_A_DEREF_HL_INC (struct cpu* const lr35902) {
-  LOG(5, "LD A,(HL+)\n");
-
-  PBYTE(6, lr35902->registers.a);
-  lr35902->registers.a = rb(lr35902->mmu, lr35902->registers.hl);
-  PBYTE(6, lr35902->registers.a);
-
-  PSHORT(6, lr35902->registers.hl);
-  ++lr35902->registers.hl;
-  PSHORT(6, lr35902->registers.hl);
-
-  ++lr35902->registers.pc;
-}
-
-static void LD_A_DEREF_a16 (struct cpu* const lr35902) {
-  LOG(5, "LD A,(a16)\n");
-  const uint16_t a16 = load_d16(lr35902);
-  PSHORT(6, a16);
-  lr35902->registers.a = rb(lr35902->mmu, a16);
-  lr35902->registers.pc += 3;
-}
-
-static void LD_DEREF_a16_A (struct cpu* const lr35902) {
-  LOG(5, "LD (a16),A\n");
-  const uint16_t a16 = load_d16(lr35902);
-  PSHORT(6, a16);
-  wb(lr35902->mmu, a16, lr35902->registers.a);
-  lr35902->registers.pc += 3;
-}
-
-static void LD_DEREF_BC_A (struct cpu* const lr35902) {
-  LOG(5, "LD (BC),A\n");
-  wb(lr35902->mmu, REG(bc), REG(a));
-  ++REG(pc);
-}
-
-#define PUSH_xy(xy, XY) \
-static void PUSH_ ## XY (struct cpu* const lr35902) { \
-  LOG(5, "PUSH " #XY "\n"); \
-  push(lr35902, REG(xy)); \
-  ++REG(pc); \
-}
-
-PUSH_xy(af, AF);
-PUSH_xy(bc, BC);
-PUSH_xy(de, DE);
-PUSH_xy(hl, HL);
-
-#define POP_xy(xy, XY) \
-static void POP_ ## XY (struct cpu* const lr35902) { \
-  LOG(5, "POP " #XY "\n"); \
-  REG(xy) = pop(lr35902); \
-  ++REG(pc); \
-}
-
-POP_xy(af, AF);
-POP_xy(bc, BC);
-POP_xy(de, DE);
-POP_xy(hl, HL);
-
-static void __JR_r8 (struct cpu* const lr35902) {
-  lr35902->registers.pc += load_r8(lr35902) + 2;
-}
-
-static void JR_r8 (struct cpu* const lr35902) {
-  LOG(5, "JR r8\n");
-  // TODO: remove the double load when not debugging
-  int8_t r8 = load_r8(lr35902);
-  LOG(6, "where r8 == %d\n", r8);
-  PSHORT(6, lr35902->registers.pc);
-  __JR_r8(lr35902);
-  PSHORT(6, lr35902->registers.pc);
-}
-
-static void __JR_COND_r8 (struct cpu* const lr35902, int cond) {
-  if (cond) {
-    LOG(6, "jumping\n");
-    __JR_r8(lr35902);
-  } else {
-    LOG(6, "not jumping\n");
-    lr35902->registers.pc += 2;
-  }
-}
-
-static void JR_NZ_r8 (struct cpu* const lr35902) {
-  LOG(5, "JR NZ,r8\n");
-  int8_t r8 = load_r8(lr35902);
-  LOG(6, "where r8 == %d\n", r8);
-  pflags(6, lr35902->registers.f);
-  PSHORT(6, lr35902->registers.pc);
-
-  __JR_COND_r8(lr35902, !lr35902->registers.f.z);
-}
-
-static void JR_Z_r8 (struct cpu* const lr35902) {
-  LOG(5, "JR Z,r8\n");
-  int8_t r8 = load_r8(lr35902);
-  LOG(6, "where r8 == %d\n", r8);
-  pflags(6, lr35902->registers.f);
-  PSHORT(6, lr35902->registers.pc);
-
-  __JR_COND_r8(lr35902, lr35902->registers.f.z);
-  PSHORT(6, lr35902->registers.pc);
-}
-
-static void JR_NC_r8 (struct cpu* const lr35902) {
-  LOG(5, "JR NC,r8\n");
-  int8_t r8 = load_r8(lr35902);
-  LOG(6, "where r8 == " PRIbyte "\n", r8);
-  pflags(6, lr35902->registers.f);
-  PSHORT(6, lr35902->registers.pc);
-
-  __JR_COND_r8(lr35902, !lr35902->registers.f.c);
-  PSHORT(6, lr35902->registers.pc);
-}
-
-static void JP_a16 (struct cpu* const lr35902) {
-  LOG(5, "JP_a16\n");
-  const uint16_t a16 = load_d16(lr35902);
-  LOG(6, "jumping to ");
-  PSHORT(6, a16);
-  lr35902->registers.pc = a16;
-}
-
-static void JP_NZ_a16 (struct cpu* const lr35902) {
-  LOG(5, "JP NZ,a16\n");
-  pflags(6, lr35902->registers.f);
-  if (lr35902->registers.f.z) {
-    REG(pc) += 3;
-  } else {
-    REG(pc) = load_d16(lr35902);
-  }
-}
-
-static void JP_DEREF_HL (struct cpu* const lr35902) {
-  LOG(5, "JP (HL)\n");
-  lr35902->registers.pc = rw(lr35902->mmu, lr35902->registers.hl);
-  LOG(6, "jumping to ");
-  PSHORT(6, lr35902->registers.pc);
-}
-
-static void CALL_a16 (struct cpu* const lr35902) {
-  LOG(5, "CALL a16\n");
-  // push address of next instruction onto stack
-  push(lr35902, REG(pc) + 3);
-
-  // jump to address
-  const uint16_t a16 = load_d16(lr35902);
-  LOG(6, PRIshort "\n", a16);
-  REG(pc) = a16;
-}
-
-static void CALL_NZ_a16 (struct cpu* const lr35902) {
-  LOG(5, "CALL NZ,a16\n");
-  // push address of next instruction onto stack
-  push(lr35902, REG(pc) + 3);
-
-  pflags(6, lr35902->registers.f);
-  if (lr35902->registers.f.z) {
-    LOG(6, "not jumping\n");
-    lr35902->registers.pc += 3;
-  } else {
-    // jump to address
-    const uint16_t a16 = load_d16(lr35902);
-    lr35902->registers.pc = a16;
-    LOG(6, "jumping to " PRIshort "\n", lr35902->registers.pc);
-  }
-}
-
-static void RET (struct cpu* const lr35902) {
-  LOG(5, "RET\n");
-  // pop 2B from stack
-  const uint16_t a = pop(lr35902);
-  PSHORT(6, a);
-  // jump to that address
-  lr35902->registers.pc = a;
-}
-
-static void RET_Z (struct cpu* const lr35902) {
-  LOG(5, "RET Z\n");
-  pflags(6, lr35902->registers.f);
-  if (lr35902->registers.f.z) {
-    LOG(6, "jumping\n");
-    // pop 2B from stack
-    // jump to that address
-    lr35902->registers.pc = pop(lr35902);
-  } else {
-    LOG(6, "not jumping\n");
-    ++lr35902->registers.pc;
-  }
-}
-
-static void RET_C (struct cpu* const lr35902) {
-  LOG(5, "RET C\n");
-  pflags(6, lr35902->registers.f);
-  if (lr35902->registers.f.c) {
-    LOG(6, "jumping\n");
-    // pop 2B from stack
-    // jump to that address
-    lr35902->registers.pc = pop(lr35902);
-  } else {
-    LOG(6, "not jumping\n");
-    ++lr35902->registers.pc;
-  }
-}
-
-static void RET_NC (struct cpu* const lr35902) {
-  LOG(5, "RET NC\n");
-  pflags(6, lr35902->registers.f);
-  if (lr35902->registers.f.c) {
-    LOG(6, "not jumping\n");
-    ++lr35902->registers.pc;
-  } else {
-    LOG(6, "jumping\n");
-    // pop 2B from stack
-    // jump to that address
-    lr35902->registers.pc = pop(lr35902);
-  }
-}
-
-static void RST_28 (struct cpu* const lr35902) {
-  LOG(5, "RST 0x28\n");
-  // Push present address onto stack.
-  push(lr35902, REG(pc));
-  // Jump to address $0000 + n.
-  lr35902->registers.pc = 0x28;
-}
-
-static void RLA (struct cpu* const lr35902) {
-  LOG(5, "RLA\n");
-  REG(a) = rotate_left(lr35902, REG(a));
-  REG(f.z) = 0;
-  ++lr35902->registers.pc;
-}
-
-static void RLCA (struct cpu* const lr35902) {
-  LOG(5, "RLCA\n");
-  REG(a) = rotate_left_through_carry(lr35902, REG(a));
-  REG(f.z) = 0;
-  ++lr35902->registers.pc;
-}
-
-static void RRA (struct cpu* const lr35902) {
-  LOG(5, "RRA\n");
-  REG(a) = rotate_right(lr35902, REG(a));
-  REG(f.z) = 0;
-  ++lr35902->registers.pc;
-}
-
-static void CP_d8 (struct cpu* const lr35902) {
-  LOG(5, "CP d8\n");
-  const uint8_t d8 = load_d8(lr35902);
-  LOG(6, "where d8 == ");
-  PBYTE(6, d8);
-  const uint8_t result = lr35902->registers.a - d8;
-  lr35902->registers.f.z = !result;
-  lr35902->registers.f.n = 1;
-  // not sure that these are right
-  lr35902->registers.f.h = (result & 0x10) == 0x10;
-  lr35902->registers.f.c = (result & 0x80) != 0;
-  lr35902->registers.pc += 2;
-}
-
-static void CP_DEREF_HL (struct cpu* const lr35902) {
-  LOG(5, "CP (HL)\n");
-  const uint8_t subtrahend = rb(lr35902->mmu, lr35902->registers.hl);
-  const uint8_t result = lr35902->registers.a - subtrahend;
-  lr35902->registers.f.z = !result;
-  lr35902->registers.f.n = 1;
-  // not sure that these are right
-  lr35902->registers.f.h = (result & 0x10) == 0x10;
-  lr35902->registers.f.c = (result & 0x80) != 0;
-  ++lr35902->registers.pc;
-}
-
-static void EI (struct cpu* const lr35902) {
-  LOG(5, "EI\n");
-  wb(lr35902->mmu, 0xFFFF, 0xFF); // ?
-  lr35902->interrupts_enabled = 1;
-  ++lr35902->registers.pc;
-}
-
-static void DI (struct cpu* const lr35902) {
-  LOG(5, "DI\n");
-  wb(lr35902->mmu, 0xFFFF, 0); // ?
-  lr35902->interrupts_enabled = 0;
-  ++lr35902->registers.pc;
-}
-
-#define OR_x(x, X) \
-static void OR_ ## X (struct cpu* const lr35902) { \
-  LOG(5, "OR " #X "\n"); \
-  REG(a) |= x; \
-  lr35902->registers.f.z = !lr35902->registers.a; \
-  lr35902->registers.f.n = 0; \
-  lr35902->registers.f.h = 0; \
-  lr35902->registers.f.c = 0; \
-  ++REG(pc); \
-}
-
-OR_x(REG(a), A);
-OR_x(REG(b), B);
-OR_x(REG(c), C);
-OR_x(DEREF_READ(hl), DEREF_HL);
-
-static void OR_d8 (struct cpu* const lr35902) {
-  LOG(5, "OR d8\n");
-  REG(a) |= load_d8(lr35902);
-  lr35902->registers.f.z = !lr35902->registers.a;
-  lr35902->registers.f.n = 0;
-  lr35902->registers.f.h = 0;
-  lr35902->registers.f.c = 0;
-  REG(pc) += 2;
-}
-
-static void AND_C (struct cpu* const lr35902) {
-  LOG(5, "AND C\n");
-  lr35902->registers.a &= lr35902->registers.c;
-  lr35902->registers.f.z = !lr35902->registers.a;
-  lr35902->registers.f.n = 0;
-  lr35902->registers.f.h = 1;
-  lr35902->registers.f.c = 0;
-  ++lr35902->registers.pc;
-}
-
-static void AND_d8 (struct cpu* const lr35902) {
-  LOG(5, "AND d8\n");
-  const uint8_t d8 = load_d8(lr35902);
-  LOG(6, "where d8 == ");
-  PBYTE(6, d8);
-  lr35902->registers.a &= d8;
-  lr35902->registers.f.z = !lr35902->registers.a;
-  lr35902->registers.f.n = 0;
-  lr35902->registers.f.h = 1;
-  lr35902->registers.f.c = 0;
-  lr35902->registers.pc += 2;
-}
-
-static void CPL (struct cpu* const lr35902) {
-  LOG(5, "CPL\n");
-  lr35902->registers.a = ~lr35902->registers.a;
-  lr35902->registers.f.n = 1;
-  lr35902->registers.f.h = 1;
-  ++lr35902->registers.pc;
-}
-
-static const instr opcodes [256] = {
-  NOP, LD_BC_d16, LD_DEREF_BC_A, INC_BC, INC_B, DEC_B, LD_B_d8, RLCA, 0, 0, 0, DEC_BC, INC_C, DEC_C, LD_C_d8, 0, // 0x
-  0, LD_DE_d16, LD_DEREF_DE_A, INC_DE, INC_D, DEC_D, LD_D_d8, RLA, JR_r8, ADD_HL_DE, LD_A_DEREF_DE, 0, INC_E, DEC_E, LD_E_d8, RRA, // 1x
-  JR_NZ_r8, LD_HL_d16, LD_DEREF_HL_INC_A, INC_HL, INC_H, DEC_H, LD_H_d8, 0, JR_Z_r8, ADD_HL_HL, LD_A_DEREF_HL_INC, 0, INC_L, DEC_L, LD_L_d8, CPL, // 2x
-  JR_NC_r8, LD_SP_d16, LD_DEREF_HL_DEC_A, 0, 0, DEC_DEREF_HL, LD_DEREF_HL_d8, 0, 0, 0, 0, 0, INC_A, DEC_A, LD_A_d8, 0, // 3x
-  LD_B_B, 0, 0, 0, 0, 0, LD_B_DEREF_HL, LD_B_A, 0, 0, 0, 0, 0, 0, LD_C_DEREF_HL, LD_C_A, // 4x
-  0, 0, 0, 0, 0, 0, LD_D_DEREF_HL, LD_D_A, 0, 0, 0, 0, 0, 0, LD_E_DEREF_HL, LD_E_A, // 5x
-  LD_H_B, 0, 0, 0, 0, 0, LD_H_DEREF_HL, LD_H_A, 0, 0, 0, 0, 0, 0, LD_L_DEREF_HL, LD_L_A, // 6x
-  LD_DEREF_HL_B, LD_DEREF_HL_C, LD_DEREF_HL_D, 0, 0, 0, 0, LD_DEREF_HL_A, LD_A_B, LD_A_C, LD_A_D, LD_A_E, LD_A_H, LD_A_L, LD_A_DEREF_HL, 0, // 7x
-  0, 0, 0, 0, 0, 0, ADD_A_DEREF_HL, ADD_A_A, 0, 0, 0, 0, 0, 0, 0, 0, // 8x
-  SUB_B, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 9x
-  0, AND_C, 0, 0, 0, 0, 0, 0, 0, XOR_C, 0, 0, 0, 0, XOR_DEREF_HL, XOR_A, // Ax
-  OR_B, OR_C, 0, 0, 0, 0, OR_DEREF_HL, OR_A, 0, 0, 0, 0, 0, 0, CP_DEREF_HL, 0, // Bx
-  0, POP_BC, JP_NZ_a16, JP_a16, CALL_NZ_a16, PUSH_BC, ADD_A_d8, 0, RET_Z, RET, 0, handle_cb, 0, CALL_a16, ADC_A_d8, 0, // Cx
-  RET_NC, POP_DE, 0, 0, 0, PUSH_DE, SUB_d8, 0, RET_C, 0, 0, 0, 0, 0, 0, 0, // Dx
-  LDH_DEREF_a8_A, POP_HL, LD_DEREF_C_A, 0, 0, PUSH_HL, AND_d8, 0, 0, JP_DEREF_HL, LD_DEREF_a16_A, 0, 0, 0, XOR_d8, RST_28, // Ex
-  LDH_A_DEREF_a8, POP_AF, 0, DI, 0, PUSH_AF, OR_d8, 0, LD_HL_SP_r8, LD_SP_HL, LD_A_DEREF_a16, EI, 0, 0, CP_d8, 0  // Fx
-};
-
-static instr decode (const struct cpu* const cpu) {
-  uint16_t pc = cpu->registers.pc;
-  uint8_t opcode = rb(cpu->mmu, pc);
-  LOG(4, "== " PRIbyte " @ " PRIshort " ==\n", opcode, pc);
-  instr i = opcodes[opcode];
-  // unknown instr
+uint8_t tick_once(struct cpu* const cpu) {
 #ifndef NDEBUG
-  if (i == 0) {
-    fprintf(stderr, "Unknown opcode for byte " PRIbyte " @ " PRIshort "\n",
-        opcode, pc);
-  }
+  const uint16_t pre_op_pc = REG(pc);
 #endif
-  assert(i != 0);
-  return i;
+  cpu->tick_cycles = 0;
+  const uint8_t op = fetch_byte(cpu);
+
+  LOG(5, "== " PRIbyte " @ " PRIshort "\n", op, REG(pc) - 1);
+
+  // TODO: check for interrupts
+  switch (op) {
+    CASE(0x00, {}) // NOP
+    CASE(0x01, { REG(bc) = fetch_word(cpu); }) // LD BC,d16
+    CASE(0x02, { deref_store(cpu, REG(bc), REG(a)); }) // LD (BC),A
+    CASE(0x03, {
+      ++REG(bc);
+      cpu->tick_cycles += 4;
+    }) // INC BC
+    CASE(0x04, { inc(cpu, &REG(b)); }) // INC B
+    CASE(0x05, { dec(cpu, &REG(b)); }) // DEC B
+    CASE(0x06, { REG(b) = fetch_byte(cpu); }) // LD B,d8
+    CASE(0x0C, { inc(cpu, &REG(c)); }) // INC C
+    CASE(0x0D, { dec(cpu, &REG(c)); }) // DEC C
+    CASE(0x0E, { REG(c) = fetch_byte(cpu); }) // LD C,d8
+    CASE(0x11, { REG(de) = fetch_word(cpu); }) // LD DE,d16
+    CASE(0x12, { deref_store(cpu, REG(de), REG(a)); }) // LD (DE),A
+    CASE(0x13, {
+      ++REG(de);
+      cpu->tick_cycles += 4;
+    }) // INC DE
+    CASE(0x14, { inc(cpu, &REG(d)); }) // INC D
+    CASE(0x15, { dec(cpu, &REG(d)); }) // DEC D
+    CASE(0x16, { REG(d) = fetch_byte(cpu); }) // LD D,d8
+    CASE(0x17, {
+      rotate_left(cpu, &REG(a));
+      REG(f.z) = 0;
+    }) // RLA
+    CASE(0x18, { conditional_jump_relative(cpu, 1); }) // JR r8
+    CASE(0x1A, { REG(a) = deref_load(cpu, REG(de)); }) // LD A,(DE)
+    CASE(0x1C, { inc(cpu, &REG(e)); }) // INC E
+    CASE(0x1D, { dec(cpu, &REG(e)); }) // DEC E
+    CASE(0x1E, { REG(e) = fetch_byte(cpu); }) // LD E,d8
+    CASE(0x1F, {
+      rotate_right(cpu, &REG(a));
+      REG(f.z) = 0;
+    }) // RRA
+    CASE(0x20, { conditional_jump_relative(cpu, !REG(f.z)); }) // JR NZ,r8
+    CASE(0x21, { REG(hl) = fetch_word(cpu); }) // LD HL,d16
+    CASE(0x22, { deref_store(cpu, REG(hl)++, REG(a)); }) // LD (HL+),A
+    CASE(0x23, {
+      ++REG(hl);
+      cpu->tick_cycles += 4;
+    }) // INC HL
+    CASE(0x24, { inc(cpu, &REG(h)); }) // INC H
+    CASE(0x25, { dec(cpu, &REG(h)); }) // DEC H
+    CASE(0x26, { REG(h) = fetch_byte(cpu); }) // LD H,d8
+    CASE(0x28, { conditional_jump_relative(cpu, REG(f.z)); }) // JR Z,r8
+    CASE(0x29, { add16(cpu, &REG(hl), REG(hl)); }) // ADD HL,HL
+    CASE(0x2A, { REG(a) = deref_load(cpu, REG(hl)++); }) // LD A,(HL+)
+    CASE(0x2C, { inc(cpu, &REG(l)); }) // INC L
+    CASE(0x2D, { dec(cpu, &REG(l)); }) // DEC L
+    CASE(0x2E, { REG(l) = fetch_byte(cpu); }) // LD L,d8
+    CASE(0x30, { conditional_jump_relative(cpu, !REG(f.c)); }) // JR NC,r8
+    CASE(0x31, { REG(sp) = fetch_word(cpu); }) // LD SP,d16
+    CASE(0x32, { deref_store(cpu, REG(hl)--, REG(a)); }) // LD (HL-),A
+    CASE(0x35, {
+      uint8_t x = deref_load(cpu, REG(hl));
+      dec(cpu, &x);
+      deref_store(cpu, REG(hl), x);
+    }) // DEC (HL)
+    CASE(0x3D, { dec(cpu, &REG(a)); }) // DEC A
+    CASE(0x3E, { REG(a) = fetch_byte(cpu); }) // LD A,d8
+    CASE(0x46, { REG(b) = deref_load(cpu, REG(hl)); }) // LD B,(HL)
+    CASE(0x47, { REG(b) = REG(a); }) // LD B,A
+    CASE(0x4E, { REG(c) = deref_load(cpu, REG(hl)); }) // LD C,(HL)
+    CASE(0x4F, { REG(c) = REG(a); }) // LD C,A
+    CASE(0x56, { REG(d) = deref_load(cpu, REG(hl)); }) // LD D,(HL)
+    CASE(0x57, { REG(d) = REG(a); }) // LD D,A
+    CASE(0x5D, { REG(e) = REG(l); }) // LD E,L
+    CASE(0x5F, { REG(e) = REG(a); }) // LD E,A
+    CASE(0x67, { REG(h) = REG(a); }) // LD H,A
+    CASE(0x6E, { REG(l) = deref_load(cpu, REG(hl)); }) // LD L,(HL)
+    CASE(0x6F, { REG(l) = REG(a); }) // LD L,A
+    CASE(0x70, { deref_store(cpu, REG(hl), REG(b)); }) // LD (HL),B
+    CASE(0x71, { deref_store(cpu, REG(hl), REG(c)); }) // LD (HL),C
+    CASE(0x72, { deref_store(cpu, REG(hl), REG(d)); }) // LD (HL),D
+    CASE(0x73, { deref_store(cpu, REG(hl), REG(e)); }) // LD (HL),E
+    CASE(0x77, { deref_store(cpu, REG(hl), REG(a)); }) // LD (HL),A
+    CASE(0x78, { REG(a) = REG(b); }) // LD A,B
+    CASE(0x79, { REG(a) = REG(c); }) // LD A,C
+    CASE(0x7A, { REG(a) = REG(d); }) // LD A,D
+    CASE(0x7B, { REG(a) = REG(e); }) // LD A,E
+    CASE(0x7C, { REG(a) = REG(h); }) // LD A,H
+    CASE(0x7D, { REG(a) = REG(l); }) // LD A,L
+    CASE(0x7E, { REG(a) = deref_load(cpu, REG(hl)); }) // LD A,(HL)
+    CASE(0x86, { add(cpu, deref_load(cpu, REG(hl)), 0); }) // ADD (HL)
+    CASE(0x90, { REG(a) = subtract(cpu, REG(b), 0); }) // SUB B
+    CASE(0xA9, { xor(cpu, REG(c)); }) // XOR C
+    CASE(0xAE, { xor(cpu, deref_load(cpu, REG(hl))); }) // XOR (HL)
+    CASE(0xAF, { xor(cpu, REG(a)); }) // XOR A
+    CASE(0xB1, { or(cpu, REG(c)); }) // OR C
+    CASE(0xB6, { or(cpu, deref_load(cpu, REG(hl))); }) // OR (HL)
+    CASE(0xB7, { or(cpu, REG(a)); }) // OR A
+    CASE(0xBE, { subtract(cpu, deref_load(cpu, REG(hl)), 0); }) // CP (HL)
+    CASE(0xC1, { REG(bc) = pop(cpu); }) // POP BC
+    CASE(0xC3, { jump(cpu, fetch_word(cpu)); }) // JP a16
+    CASE(0xC4, { call(cpu, !REG(f.z)); }) // CALL NZ,a16
+    CASE(0xC5, {
+      push(cpu, REG(bc));
+      // This is weird
+      cpu->tick_cycles += 4;
+    }) // PUSH BC
+    CASE(0xC6, { add(cpu, fetch_byte(cpu), 0); }) // ADD d8
+    CASE(0xC8, { ret(cpu, REG(f.z)); }) // RET Z
+    // TODO: this would be faster...
+    /*CASE(0xC9, { jump(cpu, pop(cpu)); }) // RET*/
+    CASE(0xC9, { ret(cpu, 1); }) // RET
+    CASE(0xCB, { cb(cpu); }) // CB prefix
+    CASE(0xCD, { call(cpu, 1); }) // CALL a16
+    CASE(0xCE, { add(cpu, fetch_byte(cpu), REG(f.c)); }) // ADC d8
+    CASE(0xD0, { ret(cpu, !REG(f.c)); }) // RET NC
+    CASE(0xD1, { REG(de) = pop(cpu); }) // POP DE
+    CASE(0xD5, {
+      push(cpu, REG(de));
+      // This is weird
+      cpu->tick_cycles += 4;
+    }) // PUSH DE
+    CASE(0xD6, { REG(a) = subtract(cpu, fetch_byte(cpu), 0); }) // SUB d8
+    CASE(0xE0, {
+        deref_store(cpu, 0xFF00 | fetch_byte(cpu), REG(a));
+    }) // LDH (a8),A
+    CASE(0xE1, { REG(hl) = pop(cpu); }) // POP HL
+    CASE(0xE2, { deref_store(cpu, 0xFF00 | REG(c), REG(a)); }) // LD (C),A
+    CASE(0xE5, {
+      push(cpu, REG(hl));
+      // This is weird
+      cpu->tick_cycles += 4;
+    }) // PUSH HL
+    CASE(0xE6, { and(cpu, fetch_byte(cpu)); }) // AND d8
+    CASE(0xE9, { jump(cpu, REG(hl)); }) // JP HL
+    CASE(0xEA, { deref_store(cpu, fetch_word(cpu), REG(a)); }) // LD (a16),A
+    CASE(0xEE, { xor(cpu, fetch_byte(cpu)); }) // XOR d8
+    CASE(0xF0, {
+      REG(a) = deref_load(cpu, 0xFF00 | fetch_byte(cpu));
+    }) // LDH A,(a8)
+    CASE(0xF1, { REG(af) = pop(cpu); }) // POP AF
+    CASE(0xF3, { cpu->interrupts_enabled = 0; }) // DI
+    CASE(0xF5, {
+      push(cpu, REG(af));
+      // This is weird
+      cpu->tick_cycles += 4;
+    }) // PUSH AF
+    CASE(0xFA, { REG(a) = deref_load(cpu, fetch_word(cpu)); }) // LD A,(a16)
+    CASE(0xFB, { cpu->interrupts_enabled = 1; }) // EI
+    CASE(0xFE, { subtract(cpu, fetch_byte(cpu), 0); }) // CP d8
+    default:
+      fprintf(stderr, "Unhandled opcode: " PRIbyte "\n", op);
+      exit(EXIT_FAILURE);
+      break;
+  }
+
+  assert(cpu->tick_cycles >= 4);
+  assert(cpu->tick_cycles <= 24);
+  assert(pre_op_pc != REG(pc));  // Infinite loop detected
+  return cpu->tick_cycles;
 }
 
-int tick_once (struct cpu* const cpu) {
-  instr i = decode(cpu);
-  uint16_t pre_op_pc = cpu->registers.pc;
-  i(cpu);
-  assert(pre_op_pc != cpu->registers.pc);
-  // TODO: make i() return int (cycles), return that here.
-  return 4;
-}
-
-void init_cpu (struct cpu* const restrict cpu,
-    struct mmu* const restrict mmu) {
+void init_cpu(struct cpu* const restrict cpu, struct mmu* const mmu) {
   assert(cpu != NULL);
   assert(mmu != NULL);
   cpu->mmu = mmu;
   // Don't jump the pc forward if it looks like we might be running just the
   // BIOS.
   if (!mmu->has_bios && mmu->rom_size != 256) {
-    // TODO: at the end of dmg bios, looks like af is 0x0101
-    cpu->registers.af = 0x01B0;
-    cpu->registers.bc = 0x0013;
-    cpu->registers.de = 0x00D8;
-    cpu->registers.hl = 0x014D;
-    cpu->registers.sp = 0xFFFE;
-    cpu->registers.pc = 0x0100;
+    // TODO: is this the correct value of F at the end of BIOS?
+    // TODO: might games depend on which specific bits are which flags?
+    REG(af) = 0x010D;
+    REG(bc) = 0x0013;
+    REG(de) = 0x00D8;
+    REG(hl) = 0x014D;
+    REG(sp) = 0xFFFE;
+    REG(pc) = 0x0100;
   }
   cpu->interrupts_enabled = 1;
+}
+
+static void cb(struct cpu* const cpu) {
+  cpu->tick_cycles += 4;
+  const uint8_t op = fetch_byte(cpu);
+  switch (op) {
+    CASE(0x19, {
+      rotate_right(cpu, &REG(c));
+      REG(f.z) = !REG(c);
+    }) // RR C
+    CASE(0x1A, {
+      rotate_right(cpu, &REG(d));
+      REG(f.z) = !REG(d);
+    }) // RR D
+    CASE(0x1B, {
+      rotate_right(cpu, &REG(e));
+      REG(f.z) = !REG(e);
+    }) // RR E
+    CASE(0x38, { shift_right_logical(cpu, &REG(b)); }) // SRL B
+    CASE(0x7C, { bit(cpu, REG(h), 7); }) // BIT 7,H
+    CASE(0x11, {
+      rotate_left(cpu, &REG(c));
+      REG(f.z) = !(REG(c));
+    }) // RL C
+    default:
+      fprintf(stderr, "Unhandled 0xCB opcode: " PRIbyte "\n", op);
+      exit(EXIT_FAILURE);
+      break;
+  }
 }

@@ -1,7 +1,7 @@
 LOG_LEVEL ?= 0
 
 SOURCES = \
-	cpu2.c \
+	cpu.c \
 	mmu.c \
 	lcd.c \
 	window_list.c \
