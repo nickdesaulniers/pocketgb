@@ -72,12 +72,29 @@ static uint16_t pop(struct cpu* const cpu) {
   LOG(6, "pop " PRIshort " @ " PRIshort "\n", value, REG(sp));
   return value;
 }
+
+static void call(struct cpu* const cpu, const uint8_t cond) {
+  assert(cond == 0 || cond == 1);
+  // Looks like the cycle penalty is paid even if we don't take the branch
+  const uint16_t addr = fetch_word(cpu);
+  if (cond) {
+    push(cpu, REG(pc));
+    jump(cpu, addr);
+  }
+}
+
 static uint8_t get_bit(const uint8_t src, const uint8_t index) {
   assert(index < 8);
   return (src >> index) & 1U;
 }
 
 // logical operations
+static void and(struct cpu* const cpu, const uint8_t x) {
+  REG(a) &= x;
+  REG(f.z) = !REG(a);
+  REG(f.n) = REG(f.c) = 0;
+  REG(f.h) = 1; // this is weird
+}
 static void dec(struct cpu* const cpu, uint8_t* const x) {
   --*x;
   REG(f.z) = !*x;
@@ -90,8 +107,13 @@ static void inc(struct cpu* const cpu, uint8_t* const x) {
   REG(f.n) = 0;
   REG(f.h) = (*x & 0x0F) == 0x00;
 }
-static void xor (struct cpu * const cpu, const uint8_t x) {
+static void xor(struct cpu* const cpu, const uint8_t x) {
   REG(a) ^= x;
+  REG(f.z) = !REG(a);
+  REG(f.n) = REG(f.h) = REG(f.c) = 0;
+}
+static void or(struct cpu* const cpu, const uint8_t x) {
+  REG(a) |= x;
   REG(f.z) = !REG(a);
   REG(f.n) = REG(f.h) = REG(f.c) = 0;
 }
@@ -172,14 +194,19 @@ uint8_t tick_once(struct cpu* const cpu) {
     CASE(0x24, { inc(cpu, &REG(h)); }) // INC H
     CASE(0x26, { REG(h) = fetch_byte(cpu); }) // LD H,d8
     CASE(0x28, { conditional_jump_relative(cpu, REG(f.z)); }) // JR Z,r8
-    CASE(0x2A, { REG(a) = deref_load(cpu, REG(hl)++ ); }) // LD A,(HL+)
+    CASE(0x2A, { REG(a) = deref_load(cpu, REG(hl)++); }) // LD A,(HL+)
+    CASE(0x2C, { inc(cpu, &REG(l)); }) // INC L
+    CASE(0x2D, { dec(cpu, &REG(l)); }) // DEC L
     CASE(0x2E, { REG(l) = fetch_byte(cpu); }) // LD L,d8
     CASE(0x31, { REG(sp) = fetch_word(cpu); }) // LD SP,d16
     CASE(0x32, { deref_store(cpu, REG(hl)--, REG(a)); }) // LD (HL-),A
     CASE(0x3D, { dec(cpu, &REG(a)); }) // DEC A
     CASE(0x3E, { REG(a) = fetch_byte(cpu); }) // LD A,d8
+    CASE(0x46, { REG(b) = deref_load(cpu, REG(hl)); }) // LD B,(HL)
     CASE(0x47, { REG(b) = REG(a); }) // LD B,A
+    CASE(0x4E, { REG(c) = deref_load(cpu, REG(hl)); }) // LD C,(HL)
     CASE(0x4F, { REG(c) = REG(a); }) // LD C,A
+    CASE(0x56, { REG(d) = deref_load(cpu, REG(hl)); }) // LD D,(HL)
     CASE(0x57, { REG(d) = REG(a); }) // LD D,A
     CASE(0x67, { REG(h) = REG(a); }) // LD H,A
     CASE(0x77, { deref_store(cpu, REG(hl), REG(a)); }) // LD (HL),A
@@ -189,21 +216,30 @@ uint8_t tick_once(struct cpu* const cpu) {
     CASE(0x7D, { REG(a) = REG(l); }) // LD A,L
     CASE(0x86, { add(cpu, deref_load(cpu, REG(hl)), 0); }) // ADD A,(HL)
     CASE(0x90, { REG(a) = subtract(cpu, REG(b), 0); }) // SUB B
+    CASE(0xA9, { xor(cpu, REG(c)); }) // XOR C
+    CASE(0xAE, { xor(cpu, deref_load(cpu, REG(hl))); }) // XOR (HL)
     CASE(0xAF, { xor(cpu, REG(a)); }) // XOR A
+    CASE(0xB1, { or(cpu, REG(c)); }) // OR C
+    CASE(0xB7, { or(cpu, REG(a)); }) // OR A
     CASE(0xBE, { subtract(cpu, deref_load(cpu, REG(hl)), 0); }) // CP (HL)
     CASE(0xC1, { REG(bc) = pop(cpu); }) // POP BC
     CASE(0xC3, { jump(cpu, fetch_word(cpu)); }) // JP a16
+    CASE(0xC4, { call(cpu, !REG(f.z)); }) // CALL NZ,a16
     CASE(0xC5, {
       push(cpu, REG(bc));
       // This is weird
       cpu->tick_cycles += 4;
     }) // PUSH BC
+    CASE(0xC6, { add(cpu, fetch_byte(cpu), 0); }) // ADD A,d8
     CASE(0xC9, { jump(cpu, pop(cpu)); }) // RET
     CASE(0xCB, { cb(cpu); }) // CB prefix
-    CASE(0xCD, {
-      push(cpu, REG(pc) + 2);
-      jump(cpu, fetch_word(cpu));
-    }) // CALL a16
+    CASE(0xCD, { call(cpu, 1); }) // CALL a16
+    CASE(0xD5, {
+      push(cpu, REG(de));
+      // This is weird
+      cpu->tick_cycles += 4;
+    }) // PUSH DE
+    CASE(0xD6, { REG(a) = subtract(cpu, fetch_byte(cpu), 0); }) // SUB d8
     CASE(0xE0, {
         deref_store(cpu, 0xFF00 | fetch_byte(cpu), REG(a));
     }) // LDH (a8),A
@@ -214,6 +250,7 @@ uint8_t tick_once(struct cpu* const cpu) {
       // This is weird
       cpu->tick_cycles += 4;
     }) // PUSH HL
+    CASE(0xE6, { and(cpu, fetch_byte(cpu)); }) // AND d8
     CASE(0xEA, { deref_store(cpu, fetch_word(cpu), REG(a)); }) // LD (a16),A
     CASE(0xF0, {
       REG(a) = deref_load(cpu, 0xFF00 | fetch_byte(cpu));
@@ -225,6 +262,7 @@ uint8_t tick_once(struct cpu* const cpu) {
       // This is weird
       cpu->tick_cycles += 4;
     }) // PUSH AF
+    CASE(0xFA, { REG(a) = deref_load(cpu, fetch_word(cpu)); }) // LD A,(a16)
     CASE(0xFB, { cpu->interrupts_enabled = 1; }) // EI
     CASE(0xFE, { subtract(cpu, fetch_byte(cpu), 0); }) // CP d8
     default:

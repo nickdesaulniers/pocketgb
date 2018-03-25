@@ -213,7 +213,7 @@ static void handle_hardware_io_side_effects(struct mmu* const mem,
       switch (addr & 0x0000F) {
         case 0x0000:
           // TODO: check val
-          puts("write to 0xFF50");
+          LOG(7, "write to 0xFF50");
           power_up_sequence(mem);
           break;
       }
