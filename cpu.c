@@ -94,6 +94,14 @@ static void ret(struct cpu* const cpu, const uint8_t cond) {
     conditional_jump(cpu, pop(cpu), cond);
   }
 }
+// TODO: combine with call
+static void rst(struct cpu* const cpu, const uint16_t addr) {
+  assert(addr == 0x00 || addr == 0x08 || addr == 0x10 || addr == 0x18 ||
+         addr == 0x20 || addr == 0x28 || addr == 0x30 || addr ==  0x38);
+  cpu->tick_cycles += 4;
+  push(cpu, REG(pc));
+  jump(cpu, (uint16_t)addr);
+}
 
 static uint8_t get_bit(const uint8_t src, const uint8_t index) {
   assert(index < 8);
@@ -354,7 +362,9 @@ uint8_t tick_once(struct cpu* const cpu) {
     CASE(0xB6, { or(cpu, deref_load(cpu, REG(hl))); }) // OR (HL)
     CASE(0xB7, { or(cpu, REG(a)); }) // OR A
     CASE(0xBE, { subtract(cpu, deref_load(cpu, REG(hl)), 0); }) // CP (HL)
+    CASE(0xC0, { ret(cpu, !REG(f.z)); }); // RET NZ
     CASE(0xC1, { REG(bc) = pop(cpu); }) // POP BC
+    CASE(0xC2, { conditional_jump(cpu, fetch_word(cpu), !REG(f.z)); }) // JP NZ,a16
     CASE(0xC3, { jump(cpu, fetch_word(cpu)); }) // JP a16
     CASE(0xC4, { call(cpu, !REG(f.z)); }) // CALL NZ,a16
     CASE(0xC5, {
@@ -363,23 +373,39 @@ uint8_t tick_once(struct cpu* const cpu) {
       cpu->tick_cycles += 4;
     }) // PUSH BC
     CASE(0xC6, { add(cpu, fetch_byte(cpu), 0); }) // ADD d8
+    CASE(0xC7, { rst(cpu, 0x00); }) // RST 0x00
     CASE(0xC8, { ret(cpu, REG(f.z)); }) // RET Z
     // TODO: this would be faster...
     /*CASE(0xC9, { jump(cpu, pop(cpu)); }) // RET*/
     CASE(0xC9, { ret(cpu, 1); }) // RET
+    CASE(0xCA, { conditional_jump(cpu, fetch_word(cpu), REG(f.z)); }) // JP Z,a16
     CASE(0xCB, { cb(cpu); }) // CB prefix
+    CASE(0xCC, { call(cpu, REG(f.z)); }) // CALL Z,a16
     CASE(0xCD, { call(cpu, 1); }) // CALL a16
     CASE(0xCE, { add(cpu, fetch_byte(cpu), REG(f.c)); }) // ADC d8
+    CASE(0xCF, { rst(cpu, 0x08); }) // RST 0x00
     CASE(0xD0, { ret(cpu, !REG(f.c)); }) // RET NC
     CASE(0xD1, { REG(de) = pop(cpu); }) // POP DE
+    CASE(0xD2, { conditional_jump(cpu, fetch_word(cpu), !REG(f.c)); }) // JP NC,a16
+    CASE(0xD4, { call(cpu, !REG(f.c)); }) // CALL NC,a16
     CASE(0xD5, {
       push(cpu, REG(de));
       // This is weird
       cpu->tick_cycles += 4;
     }) // PUSH DE
     CASE(0xD6, { REG(a) = subtract(cpu, fetch_byte(cpu), 0); }) // SUB d8
+    CASE(0xD7, { rst(cpu, 0x10); }) // RST 0x10
     CASE(0xD8, { ret(cpu, REG(f.c)); }) // RET C
+    CASE(0xD9, {
+      cpu->interrupts_enabled = 1;
+      // TODO: this would be faster...
+      /*jump(cpu, pop(cpu));*/
+      ret(cpu, 1);
+    }) // RETI
+    CASE(0xDA, { conditional_jump(cpu, fetch_word(cpu), REG(f.c)); }) // JP C,a16
+    CASE(0xDC, { call(cpu, REG(f.c)); }) // CALL C,a16
     CASE(0xDE, { REG(a) = subtract(cpu, fetch_byte(cpu), REG(f.c)); }) // SBC d8
+    CASE(0xDF, { rst(cpu, 0x18); }) // RST 0x18
     CASE(0xE0, {
         deref_store(cpu, 0xFF00 | fetch_byte(cpu), REG(a));
     }) // LDH (a8),A
@@ -391,9 +417,11 @@ uint8_t tick_once(struct cpu* const cpu) {
       cpu->tick_cycles += 4;
     }) // PUSH HL
     CASE(0xE6, { and(cpu, fetch_byte(cpu)); }) // AND d8
+    CASE(0xE7, { rst(cpu, 0x20); }) // RST 0x20
     CASE(0xE9, { jump(cpu, REG(hl)); }) // JP HL
     CASE(0xEA, { deref_store(cpu, fetch_word(cpu), REG(a)); }) // LD (a16),A
     CASE(0xEE, { xor(cpu, fetch_byte(cpu)); }) // XOR d8
+    CASE(0xEF, { rst(cpu, 0x28); }) // RST 0x28
     CASE(0xF0, {
       REG(a) = deref_load(cpu, 0xFF00 | fetch_byte(cpu));
     }) // LDH A,(a8)
@@ -405,6 +433,7 @@ uint8_t tick_once(struct cpu* const cpu) {
       cpu->tick_cycles += 4;
     }) // PUSH AF
     CASE(0xF6, { or(cpu, fetch_byte(cpu)); }) // OR d8
+    CASE(0xF7, { rst(cpu, 0x30); }) // RST 0x30
     CASE(0xF9, {
       REG(sp) = REG(hl);
       cpu->tick_cycles += 4;
@@ -412,6 +441,7 @@ uint8_t tick_once(struct cpu* const cpu) {
     CASE(0xFA, { REG(a) = deref_load(cpu, fetch_word(cpu)); }) // LD A,(a16)
     CASE(0xFB, { cpu->interrupts_enabled = 1; }) // EI
     CASE(0xFE, { subtract(cpu, fetch_byte(cpu), 0); }) // CP d8
+    CASE(0xFF, { rst(cpu, 0x38); }) // RST 0x38
     default:
       fprintf(stderr, "Unhandled opcode: " PRIbyte "\n", op);
       exit(EXIT_FAILURE);
