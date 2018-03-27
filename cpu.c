@@ -153,20 +153,46 @@ static void bit(struct cpu* const cpu, const uint8_t x, const uint8_t index) {
 static void rotate_left(struct cpu* const cpu, uint8_t* const x) {
   const uint8_t carry = get_bit(*x, 7);
   *x = (*x << 1) | REG(f.c);
-  // REG(f.z) is handled different when destination register is A
+  REG(f.z) = !*x;
+  REG(f.n) = REG(f.h) = 0;
   REG(f.c) = carry;
-  REG(f.h) = REG(f.n) = 0;
+}
+static void rotate_left_c(struct cpu* const cpu, uint8_t* const x) {
+  *x = (*x << 1) | (*x >> 7);
+  REG(f.z) = !*x;
+  REG(f.n) = REG(f.h) = 0;
+  REG(f.c) = get_bit(*x, 0);
 }
 static void rotate_right(struct cpu* const cpu, uint8_t* const x) {
   const uint8_t carry = get_bit(*x, 0);
   *x = (REG(f.c) << 7) | (*x >> 1);
-  // REG(f.z) is handled different when destination register is A
+  REG(f.z) = !*x;
   REG(f.n) = REG(f.h) = 0;
   REG(f.c) = carry;
+}
+static void rotate_right_c(struct cpu* const cpu, uint8_t* const x) {
+  *x = (*x << 7) | (*x >> 1);
+  REG(f.z) = !*x;
+  REG(f.n) = REG(f.h) = 0;
+  REG(f.c) = get_bit(*x, 7);
 }
 static void shift_right_logical(struct cpu* const cpu, uint8_t* const x) {
   const uint8_t carry = get_bit(*x, 0);
   *x >>= 1;
+  REG(f.z) = !*x;
+  REG(f.n) = REG(f.h) = 0;
+  REG(f.c) = carry;
+}
+static void shift_left_arithmetic(struct cpu* const cpu, uint8_t* const x) {
+  const uint8_t carry = get_bit(*x, 7);
+  *x <<= 1;
+  REG(f.z) = !*x;
+  REG(f.n) = REG(f.h) = 0;
+  REG(f.c) = carry;
+}
+static void shift_right_arithmetic(struct cpu* const cpu, uint8_t* const x) {
+  const uint8_t carry = get_bit(*x, 0);
+  *x = ((int8_t)*x) >> 1;
   REG(f.z) = !*x;
   REG(f.n) = REG(f.h) = 0;
   REG(f.c) = carry;
@@ -222,10 +248,15 @@ uint8_t tick_once(struct cpu* const cpu) {
     CASE(0x00, {}) // NOP
     CASE(0x01, { REG(bc) = fetch_word(cpu); }) // LD BC,d16
     CASE(0x02, { deref_store(cpu, REG(bc), REG(a)); }) // LD (BC),A
+    CASE(0x2F, {
+      REG(a) = ~REG(a);
+      REG(f.n) = REG(f.h) = 1;
+    }) // CPL
     CASE(0x03, { inc16(cpu, &REG(bc)); }) // INC BC
     CASE(0x04, { inc(cpu, &REG(b)); }) // INC B
     CASE(0x05, { dec(cpu, &REG(b)); }) // DEC B
     CASE(0x06, { REG(b) = fetch_byte(cpu); }) // LD B,d8
+    CASE(0x07, { rotate_left_c(cpu, &REG(a)); REG(f.z) = 0; }) // RLCA
     CASE(0x08, {
       // needs to store both bytes, not just one
       deref_store_word(cpu, fetch_word(cpu), REG(sp));
@@ -236,16 +267,14 @@ uint8_t tick_once(struct cpu* const cpu) {
     CASE(0x0C, { inc(cpu, &REG(c)); }) // INC C
     CASE(0x0D, { dec(cpu, &REG(c)); }) // DEC C
     CASE(0x0E, { REG(c) = fetch_byte(cpu); }) // LD C,d8
+    CASE(0x0F, { rotate_right_c(cpu, &REG(a)); REG(f.z) = 0; }) // RRCA
     CASE(0x11, { REG(de) = fetch_word(cpu); }) // LD DE,d16
     CASE(0x12, { deref_store(cpu, REG(de), REG(a)); }) // LD (DE),A
     CASE(0x13, { inc16(cpu, &REG(de)); }) // INC DE
     CASE(0x14, { inc(cpu, &REG(d)); }) // INC D
     CASE(0x15, { dec(cpu, &REG(d)); }) // DEC D
     CASE(0x16, { REG(d) = fetch_byte(cpu); }) // LD D,d8
-    CASE(0x17, {
-      rotate_left(cpu, &REG(a));
-      REG(f.z) = 0;
-    }) // RLA
+    CASE(0x17, { rotate_left(cpu, &REG(a)); REG(f.z) = 0; }) // RLA
     CASE(0x18, { conditional_jump_relative(cpu, 1); }) // JR r8
     CASE(0x19, { add16(cpu, &REG(hl), REG(de)); }) // ADD HL,DE
     CASE(0x1A, { REG(a) = deref_load(cpu, REG(de)); }) // LD A,(DE)
@@ -253,10 +282,7 @@ uint8_t tick_once(struct cpu* const cpu) {
     CASE(0x1C, { inc(cpu, &REG(e)); }) // INC E
     CASE(0x1D, { dec(cpu, &REG(e)); }) // DEC E
     CASE(0x1E, { REG(e) = fetch_byte(cpu); }) // LD E,d8
-    CASE(0x1F, {
-      rotate_right(cpu, &REG(a));
-      REG(f.z) = 0;
-    }) // RRA
+    CASE(0x1F, { rotate_right(cpu, &REG(a)); REG(f.z) = 0; }) // RRA
     CASE(0x20, { conditional_jump_relative(cpu, !REG(f.z)); }) // JR NZ,r8
     CASE(0x21, { REG(hl) = fetch_word(cpu); }) // LD HL,d16
     CASE(0x22, { deref_store(cpu, REG(hl)++, REG(a)); }) // LD (HL+),A
@@ -281,6 +307,7 @@ uint8_t tick_once(struct cpu* const cpu) {
       deref_store(cpu, REG(hl), x);
     }) // DEC (HL)
     CASE(0x36, { deref_store(cpu, REG(hl), fetch_byte(cpu)); }) // LD (HL),d8
+    CASE(0x37, { REG(f.c) = 1; REG(f.n) = REG(f.h) = 0; }) // SCF
     CASE(0x38, { conditional_jump_relative(cpu, REG(f.c)); }) // JR C,r8
     CASE(0x39, { add16(cpu, &REG(hl), REG(sp)); }) // ADD HL,SP
     CASE(0x3A, { REG(a) = deref_load(cpu, REG(hl)--); }) // LD A,(HL-)
@@ -288,6 +315,7 @@ uint8_t tick_once(struct cpu* const cpu) {
     CASE(0x3C, { inc(cpu, &REG(a)); }) // INC A
     CASE(0x3D, { dec(cpu, &REG(a)); }) // DEC A
     CASE(0x3E, { REG(a) = fetch_byte(cpu); }) // LD A,d8
+    CASE(0x3F, { REG(f.c) = !REG(f.c); REG(f.n) = REG(f.h) = 0; }) // CCF
     CASE(0x40, { REG(b) = REG(b); }) // LD B,B
     CASE(0x41, { REG(b) = REG(c); }) // LD B,C
     CASE(0x42, { REG(b) = REG(d); }) // LD B,D
@@ -351,17 +379,70 @@ uint8_t tick_once(struct cpu* const cpu) {
     CASE(0x7D, { REG(a) = REG(l); }) // LD A,L
     CASE(0x7E, { REG(a) = deref_load(cpu, REG(hl)); }) // LD A,(HL)
     CASE(0x7F, { REG(a) = REG(a); }) // LD A,A
+    CASE(0x80, { add(cpu, REG(b), 0); }) // ADD B
+    CASE(0x81, { add(cpu, REG(c), 0); }) // ADD C
+    CASE(0x82, { add(cpu, REG(d), 0); }) // ADD D
+    CASE(0x83, { add(cpu, REG(e), 0); }) // ADD E
+    CASE(0x84, { add(cpu, REG(h), 0); }) // ADD H
+    CASE(0x85, { add(cpu, REG(l), 0); }) // ADD L
     CASE(0x86, { add(cpu, deref_load(cpu, REG(hl)), 0); }) // ADD (HL)
+    CASE(0x87, { add(cpu, REG(a), 0); }) // ADD A
+    CASE(0x88, { add(cpu, REG(b), REG(f.c)); }) // ADC B
+    CASE(0x89, { add(cpu, REG(c), REG(f.c)); }) // ADC C
+    CASE(0x8A, { add(cpu, REG(d), REG(f.c)); }) // ADC D
+    CASE(0x8B, { add(cpu, REG(e), REG(f.c)); }) // ADC E
+    CASE(0x8C, { add(cpu, REG(h), REG(f.c)); }) // ADC H
+    CASE(0x8D, { add(cpu, REG(l), REG(f.c)); }) // ADC L
+    CASE(0x8E, { add(cpu, deref_load(cpu, REG(hl)), REG(f.c)); }) // ADC (HL)
+    CASE(0x8F, { add(cpu, REG(a), REG(f.c)); }) // ADC A
     CASE(0x90, { REG(a) = subtract(cpu, REG(b), 0); }) // SUB B
+    CASE(0x91, { REG(a) = subtract(cpu, REG(c), 0); }) // SUB C
+    CASE(0x92, { REG(a) = subtract(cpu, REG(d), 0); }) // SUB D
+    CASE(0x93, { REG(a) = subtract(cpu, REG(e), 0); }) // SUB E
+    CASE(0x94, { REG(a) = subtract(cpu, REG(h), 0); }) // SUB H
+    CASE(0x95, { REG(a) = subtract(cpu, REG(l), 0); }) // SUB L
+    CASE(0x96, { REG(a) = subtract(cpu, deref_load(cpu, REG(hl)), 0); }) // SUB (HL)
+    CASE(0x97, { REG(a) = subtract(cpu, REG(a), 0); }) // SUB A
+    CASE(0x98, { REG(a) = subtract(cpu, REG(b), REG(f.c)); }) // SBC B
+    CASE(0x99, { REG(a) = subtract(cpu, REG(c), REG(f.c)); }) // SBC C
+    CASE(0x9A, { REG(a) = subtract(cpu, REG(d), REG(f.c)); }) // SBC D
+    CASE(0x9B, { REG(a) = subtract(cpu, REG(e), REG(f.c)); }) // SBC E
+    CASE(0x9C, { REG(a) = subtract(cpu, REG(h), REG(f.c)); }) // SBC H
+    CASE(0x9D, { REG(a) = subtract(cpu, REG(l), REG(f.c)); }) // SBC L
+    CASE(0x9E, { REG(a) = subtract(cpu, deref_load(cpu, REG(hl)), REG(f.c)); }) // SBC (HL)
+    CASE(0x9F, { REG(a) = subtract(cpu, REG(a), REG(f.c)); }) // SBC A
+    CASE(0xA0, { and(cpu, REG(b)); }) // AND B
+    CASE(0xA1, { and(cpu, REG(c)); }) // AND C
+    CASE(0xA2, { and(cpu, REG(d)); }) // AND D
+    CASE(0xA3, { and(cpu, REG(e)); }) // AND E
+    CASE(0xA4, { and(cpu, REG(h)); }) // AND H
+    CASE(0xA5, { and(cpu, REG(l)); }) // AND L
+    CASE(0xA6, { and(cpu, deref_load(cpu, REG(hl))); }) // AND (HL)
+    CASE(0xA7, { and(cpu, REG(a)); }) // AND A
+    CASE(0xA8, { xor(cpu, REG(b)); }) // XOR B
     CASE(0xA9, { xor(cpu, REG(c)); }) // XOR C
+    CASE(0xAA, { xor(cpu, REG(d)); }) // XOR D
+    CASE(0xAB, { xor(cpu, REG(e)); }) // XOR E
+    CASE(0xAC, { xor(cpu, REG(h)); }) // XOR H
     CASE(0xAD, { xor(cpu, REG(l)); }) // XOR L
     CASE(0xAE, { xor(cpu, deref_load(cpu, REG(hl))); }) // XOR (HL)
     CASE(0xAF, { xor(cpu, REG(a)); }) // XOR A
     CASE(0xB0, { or(cpu, REG(b)); }) // OR B
     CASE(0xB1, { or(cpu, REG(c)); }) // OR C
+    CASE(0xB2, { or(cpu, REG(d)); }) // OR D
+    CASE(0xB3, { or(cpu, REG(e)); }) // OR E
+    CASE(0xB4, { or(cpu, REG(h)); }) // OR H
+    CASE(0xB5, { or(cpu, REG(l)); }) // OR L
     CASE(0xB6, { or(cpu, deref_load(cpu, REG(hl))); }) // OR (HL)
     CASE(0xB7, { or(cpu, REG(a)); }) // OR A
+    CASE(0xB8, { subtract(cpu, REG(b), 0); }) // CP B
+    CASE(0xB9, { subtract(cpu, REG(c), 0); }) // CP C
+    CASE(0xBA, { subtract(cpu, REG(d), 0); }) // CP D
+    CASE(0xBB, { subtract(cpu, REG(e), 0); }) // CP E
+    CASE(0xBC, { subtract(cpu, REG(h), 0); }) // CP H
+    CASE(0xBD, { subtract(cpu, REG(l), 0); }) // CP L
     CASE(0xBE, { subtract(cpu, deref_load(cpu, REG(hl)), 0); }) // CP (HL)
+    CASE(0xBF, { subtract(cpu, REG(a), 0); }) // CP A
     CASE(0xC0, { ret(cpu, !REG(f.z)); }); // RET NZ
     CASE(0xC1, { REG(bc) = pop(cpu); }) // POP BC
     CASE(0xC2, { conditional_jump(cpu, fetch_word(cpu), !REG(f.z)); }) // JP NZ,a16
@@ -426,6 +507,7 @@ uint8_t tick_once(struct cpu* const cpu) {
       REG(a) = deref_load(cpu, 0xFF00 | fetch_byte(cpu));
     }) // LDH A,(a8)
     CASE(0xF1, { REG(af) = pop(cpu); }) // POP AF
+    CASE(0xF2, { REG(a) = deref_load(cpu, 0xFF00 | REG(c)); }) // LD A,(C)
     CASE(0xF3, { cpu->interrupts_enabled = 0; }) // DI
     CASE(0xF5, {
       push(cpu, REG(af));
@@ -477,25 +559,63 @@ static void cb(struct cpu* const cpu) {
   cpu->tick_cycles += 4;
   const uint8_t op = fetch_byte(cpu);
   switch (op) {
-    CASE(0x19, {
-      rotate_right(cpu, &REG(c));
-      REG(f.z) = !REG(c);
-    }) // RR C
-    CASE(0x1A, {
-      rotate_right(cpu, &REG(d));
-      REG(f.z) = !REG(d);
-    }) // RR D
-    CASE(0x1B, {
-      rotate_right(cpu, &REG(e));
-      REG(f.z) = !REG(e);
-    }) // RR E
+    CASE(0x00, { rotate_left_c(cpu, &REG(b)); }) // RLC B
+    CASE(0x01, { rotate_left_c(cpu, &REG(c)); }) // RLC C
+    CASE(0x02, { rotate_left_c(cpu, &REG(d)); }) // RLC D
+    CASE(0x03, { rotate_left_c(cpu, &REG(e)); }) // RLC E
+    CASE(0x04, { rotate_left_c(cpu, &REG(h)); }) // RLC H
+    CASE(0x05, { rotate_left_c(cpu, &REG(l)); }) // RLC L
+    CASE(0x07, { rotate_left_c(cpu, &REG(a)); }) // RLC A
+    CASE(0x08, { rotate_right_c(cpu, &REG(b)); }) // RLC B
+    CASE(0x09, { rotate_right_c(cpu, &REG(c)); }) // RLC C
+    CASE(0x0A, { rotate_right_c(cpu, &REG(d)); }) // RLC D
+    CASE(0x0B, { rotate_right_c(cpu, &REG(e)); }) // RLC E
+    CASE(0x0C, { rotate_right_c(cpu, &REG(h)); }) // RLC H
+    CASE(0x0D, { rotate_right_c(cpu, &REG(l)); }) // RLC L
+    CASE(0x0F, { rotate_right_c(cpu, &REG(a)); }) // RLC A
+    CASE(0x10, { rotate_left(cpu, &REG(b)); }) // RL B
+    CASE(0x11, { rotate_left(cpu, &REG(c)); }) // RL C
+    CASE(0x12, { rotate_left(cpu, &REG(d)); }) // RL D
+    CASE(0x13, { rotate_left(cpu, &REG(e)); }) // RL E
+    CASE(0x14, { rotate_left(cpu, &REG(h)); }) // RL H
+    CASE(0x15, { rotate_left(cpu, &REG(l)); }) // RL L
+    CASE(0x17, { rotate_left(cpu, &REG(a)); }) // RL A
+    CASE(0x18, { rotate_right(cpu, &REG(b)); }) // RR B
+    CASE(0x19, { rotate_right(cpu, &REG(c)); }) // RR C
+    CASE(0x1A, { rotate_right(cpu, &REG(d)); }) // RR D
+    CASE(0x1B, { rotate_right(cpu, &REG(e)); }) // RR E
+    CASE(0x1C, { rotate_right(cpu, &REG(h)); }) // RR H
+    CASE(0x1D, { rotate_right(cpu, &REG(l)); }) // RR L
+    CASE(0x1F, { rotate_right(cpu, &REG(a)); }) // RR A
+    CASE(0x20, { shift_left_arithmetic(cpu, &REG(b)); }) // SLA B
+    CASE(0x21, { shift_left_arithmetic(cpu, &REG(c)); }) // SLA C
+    CASE(0x22, { shift_left_arithmetic(cpu, &REG(d)); }) // SLA D
+    CASE(0x23, { shift_left_arithmetic(cpu, &REG(e)); }) // SLA E
+    CASE(0x24, { shift_left_arithmetic(cpu, &REG(h)); }) // SLA H
+    CASE(0x25, { shift_left_arithmetic(cpu, &REG(l)); }) // SLA L
+    CASE(0x27, { shift_left_arithmetic(cpu, &REG(a)); }) // SLA A
+    CASE(0x28, { shift_right_arithmetic(cpu, &REG(b)); }) // SRA B
+    CASE(0x29, { shift_right_arithmetic(cpu, &REG(c)); }) // SRA C
+    CASE(0x2A, { shift_right_arithmetic(cpu, &REG(d)); }) // SRA D
+    CASE(0x2B, { shift_right_arithmetic(cpu, &REG(e)); }) // SRA E
+    CASE(0x2C, { shift_right_arithmetic(cpu, &REG(h)); }) // SRA H
+    CASE(0x2D, { shift_right_arithmetic(cpu, &REG(l)); }) // SRA L
+    CASE(0x2F, { shift_right_arithmetic(cpu, &REG(a)); }) // SRA A
+    CASE(0x30, { swap(cpu, &REG(b)); }) // SWAP B
+    CASE(0x31, { swap(cpu, &REG(c)); }) // SWAP C
+    CASE(0x32, { swap(cpu, &REG(d)); }) // SWAP D
+    CASE(0x33, { swap(cpu, &REG(e)); }) // SWAP E
+    CASE(0x34, { swap(cpu, &REG(h)); }) // SWAP H
+    CASE(0x35, { swap(cpu, &REG(l)); }) // SWAP L
     CASE(0x37, { swap(cpu, &REG(a)); }) // SWAP A
     CASE(0x38, { shift_right_logical(cpu, &REG(b)); }) // SRL B
+    CASE(0x39, { shift_right_logical(cpu, &REG(c)); }) // SRL C
+    CASE(0x3A, { shift_right_logical(cpu, &REG(d)); }) // SRL D
+    CASE(0x3B, { shift_right_logical(cpu, &REG(e)); }) // SRL E
+    CASE(0x3C, { shift_right_logical(cpu, &REG(h)); }) // SRL H
+    CASE(0x3D, { shift_right_logical(cpu, &REG(l)); }) // SRL L
+    CASE(0x3F, { shift_right_logical(cpu, &REG(a)); }) // SRL A
     CASE(0x7C, { bit(cpu, REG(h), 7); }) // BIT 7,H
-    CASE(0x11, {
-      rotate_left(cpu, &REG(c));
-      REG(f.z) = !(REG(c));
-    }) // RL C
     default:
       fprintf(stderr, "Unhandled 0xCB opcode: " PRIbyte "\n", op);
       exit(EXIT_FAILURE);
