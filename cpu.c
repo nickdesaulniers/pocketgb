@@ -491,6 +491,14 @@ uint8_t tick_once(struct cpu* const cpu) {
     }) // PUSH HL
     CASE(0xE6, { and(cpu, fetch_byte(cpu)); }) // AND d8
     CASE(0xE7, { rst(cpu, 0x20); }) // RST 0x20
+    CASE(0xE8, {
+      const int8_t r8 = (int8_t)fetch_byte(cpu);
+      REG(f.z) = REG(f.n) = 0;
+      REG(f.c) = (REG(sp) & 0xFF) + ((uint8_t)r8) > 0xFF;
+      REG(f.h) = (REG(sp) & 0x0F) + (((uint8_t)r8) & 0x0F) > 0x0F;
+      REG(sp) += r8;
+      cpu->tick_cycles += 8;
+    }) // ADD SP,r8
     CASE(0xE9, { jump(cpu, REG(hl)); }) // JP HL
     CASE(0xEA, { deref_store(cpu, fetch_word(cpu), REG(a)); }) // LD (a16),A
     CASE(0xEE, { xor(cpu, fetch_byte(cpu)); }) // XOR d8
@@ -509,6 +517,14 @@ uint8_t tick_once(struct cpu* const cpu) {
     }) // PUSH AF
     CASE(0xF6, { or(cpu, fetch_byte(cpu)); }) // OR d8
     CASE(0xF7, { rst(cpu, 0x30); }) // RST 0x30
+    CASE(0xF8, {
+      const int8_t r8 = (int8_t)fetch_byte(cpu);
+      REG(f.z) = REG(f.n) = 0;
+      REG(f.c) = (REG(sp) & 0xFF) + ((uint8_t)r8) > 0xFF;
+      REG(f.h) = (REG(sp) & 0x0F) + (((uint8_t)r8) & 0x0F) > 0x0F;
+      REG(hl) = REG(sp) + r8;
+      cpu->tick_cycles += 4;
+    }) // LD HL,SP+r8
     CASE(0xF9, {
       REG(sp) = REG(hl);
       cpu->tick_cycles += 4;
