@@ -10,10 +10,13 @@ struct cpu {
       uint16_t af;
       struct {
         struct flags {
-          uint8_t z : 1;
-          uint8_t n : 1;
-          uint8_t h : 1;
+          // blargg's tests crc routines require this order to be correct
+          // http://gbdev.gg8.se/wiki/articles/CPU_Registers_and_Flags
+          uint8_t __unused : 4;
           uint8_t c : 1;
+          uint8_t h : 1;
+          uint8_t n : 1;
+          uint8_t z : 1;
         } f;
         uint8_t a;
       };

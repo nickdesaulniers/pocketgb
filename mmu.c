@@ -43,7 +43,7 @@ void wb (struct mmu* const mem, const uint16_t addr, const uint8_t val) {
       break;
     case 0xE000:
       // echo ram
-      puts("write to echo ram");
+      LOG(7, "write to echo ram\n");
       return wb(mem, addr - 0x2000, val);
     case 0xF000:
       switch (addr & 0x0F00) {
@@ -54,7 +54,7 @@ void wb (struct mmu* const mem, const uint16_t addr, const uint8_t val) {
           break;
         default:
           // echo ram
-          puts("write to echo ram");
+          LOG(7, "write to echo ram\n");
           return wb(mem, addr - 0x2000, val);
       }
       break;
