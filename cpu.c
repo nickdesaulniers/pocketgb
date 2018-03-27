@@ -379,6 +379,7 @@ uint8_t tick_once(struct cpu* const cpu) {
     }) // PUSH DE
     CASE(0xD6, { REG(a) = subtract(cpu, fetch_byte(cpu), 0); }) // SUB d8
     CASE(0xD8, { ret(cpu, REG(f.c)); }) // RET C
+    CASE(0xDE, { REG(a) = subtract(cpu, fetch_byte(cpu), REG(f.c)); }) // SBC d8
     CASE(0xE0, {
         deref_store(cpu, 0xFF00 | fetch_byte(cpu), REG(a));
     }) // LDH (a8),A
@@ -403,6 +404,11 @@ uint8_t tick_once(struct cpu* const cpu) {
       // This is weird
       cpu->tick_cycles += 4;
     }) // PUSH AF
+    CASE(0xF6, { or(cpu, fetch_byte(cpu)); }) // OR d8
+    CASE(0xF9, {
+      REG(sp) = REG(hl);
+      cpu->tick_cycles += 4;
+    }) // LD SP,HL
     CASE(0xFA, { REG(a) = deref_load(cpu, fetch_word(cpu)); }) // LD A,(a16)
     CASE(0xFB, { cpu->interrupts_enabled = 1; }) // EI
     CASE(0xFE, { subtract(cpu, fetch_byte(cpu), 0); }) // CP d8
