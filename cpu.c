@@ -248,19 +248,13 @@ uint8_t tick_once(struct cpu* const cpu) {
     CASE(0x00, {}) // NOP
     CASE(0x01, { REG(bc) = fetch_word(cpu); }) // LD BC,d16
     CASE(0x02, { deref_store(cpu, REG(bc), REG(a)); }) // LD (BC),A
-    CASE(0x2F, {
-      REG(a) = ~REG(a);
-      REG(f.n) = REG(f.h) = 1;
-    }) // CPL
+    CASE(0x2F, { REG(a) = ~REG(a); REG(f.n) = REG(f.h) = 1; }) // CPL
     CASE(0x03, { inc16(cpu, &REG(bc)); }) // INC BC
     CASE(0x04, { inc(cpu, &REG(b)); }) // INC B
     CASE(0x05, { dec(cpu, &REG(b)); }) // DEC B
     CASE(0x06, { REG(b) = fetch_byte(cpu); }) // LD B,d8
     CASE(0x07, { rotate_left_c(cpu, &REG(a)); REG(f.z) = 0; }) // RLCA
-    CASE(0x08, {
-      // needs to store both bytes, not just one
-      deref_store_word(cpu, fetch_word(cpu), REG(sp));
-    }) // LD (a16),SP
+    CASE(0x08, { deref_store_word(cpu, fetch_word(cpu), REG(sp)); }) // LD (a16),SP
     CASE(0x09, { add16(cpu, &REG(hl), REG(bc)); }) // ADD HL,BC
     CASE(0x0A, { REG(a) = deref_load(cpu, REG(bc)); }) // LD A,(BC)
     CASE(0x0B, { dec16(cpu, &REG(bc)); }) // DEC BC
@@ -487,9 +481,7 @@ uint8_t tick_once(struct cpu* const cpu) {
     CASE(0xDC, { call(cpu, REG(f.c)); }) // CALL C,a16
     CASE(0xDE, { REG(a) = subtract(cpu, fetch_byte(cpu), REG(f.c)); }) // SBC d8
     CASE(0xDF, { rst(cpu, 0x18); }) // RST 0x18
-    CASE(0xE0, {
-        deref_store(cpu, 0xFF00 | fetch_byte(cpu), REG(a));
-    }) // LDH (a8),A
+    CASE(0xE0, { deref_store(cpu, 0xFF00 | fetch_byte(cpu), REG(a)); }) // LDH (a8),A
     CASE(0xE1, { REG(hl) = pop(cpu); }) // POP HL
     CASE(0xE2, { deref_store(cpu, 0xFF00 | REG(c), REG(a)); }) // LD (C),A
     CASE(0xE5, {
@@ -506,7 +498,8 @@ uint8_t tick_once(struct cpu* const cpu) {
     CASE(0xF0, {
       REG(a) = deref_load(cpu, 0xFF00 | fetch_byte(cpu));
     }) // LDH A,(a8)
-    CASE(0xF1, { REG(af) = pop(cpu); }) // POP AF
+    // Does not update padding!
+    CASE(0xF1, { REG(af) = pop(cpu) & 0xFFF0; }) // POP AF
     CASE(0xF2, { REG(a) = deref_load(cpu, 0xFF00 | REG(c)); }) // LD A,(C)
     CASE(0xF3, { cpu->interrupts_enabled = 0; }) // DI
     CASE(0xF5, {
@@ -534,25 +527,6 @@ uint8_t tick_once(struct cpu* const cpu) {
   assert(cpu->tick_cycles <= 24);
   assert(pre_op_pc != REG(pc));  // Infinite loop detected
   return cpu->tick_cycles;
-}
-
-void init_cpu(struct cpu* const restrict cpu, struct mmu* const mmu) {
-  assert(cpu != NULL);
-  assert(mmu != NULL);
-  cpu->mmu = mmu;
-  // Don't jump the pc forward if it looks like we might be running just the
-  // BIOS.
-  if (!mmu->has_bios && mmu->rom_size != 256) {
-    // TODO: is this the correct value of F at the end of BIOS?
-    // TODO: might games depend on which specific bits are which flags?
-    REG(af) = 0x010D;
-    REG(bc) = 0x0013;
-    REG(de) = 0x00D8;
-    REG(hl) = 0x014D;
-    REG(sp) = 0xFFFE;
-    REG(pc) = 0x0100;
-  }
-  cpu->interrupts_enabled = 1;
 }
 
 static void cb(struct cpu* const cpu) {
@@ -621,4 +595,23 @@ static void cb(struct cpu* const cpu) {
       exit(EXIT_FAILURE);
       break;
   }
+}
+
+void init_cpu(struct cpu* const restrict cpu, struct mmu* const mmu) {
+  assert(cpu != NULL);
+  assert(mmu != NULL);
+  cpu->mmu = mmu;
+  // Don't jump the pc forward if it looks like we might be running just the
+  // BIOS.
+  if (!mmu->has_bios && mmu->rom_size != 256) {
+    // TODO: is this the correct value of F at the end of BIOS?
+    // TODO: might games depend on which specific bits are which flags?
+    REG(af) = 0x010D;
+    REG(bc) = 0x0013;
+    REG(de) = 0x00D8;
+    REG(hl) = 0x014D;
+    REG(sp) = 0xFFFE;
+    REG(pc) = 0x0100;
+  }
+  cpu->interrupts_enabled = 1;
 }
