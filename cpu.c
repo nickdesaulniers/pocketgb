@@ -14,8 +14,7 @@
 #define DEREF_DECORATOR(reg, block) \
   uint8_t x = deref_load(cpu, reg); \
   block; \
-  deref_store(cpu, reg, x); \
-  cpu->tick_cycles += 8;
+  deref_store(cpu, reg, x);
 
 __attribute__((unused))
 static void pflags (const int level, const struct flags f) {
@@ -300,6 +299,30 @@ uint8_t tick_once(struct cpu* const cpu) {
     CASE(0x24, { inc(cpu, &REG(h)); }) // INC H
     CASE(0x25, { dec(cpu, &REG(h)); }) // DEC H
     CASE(0x26, { REG(h) = fetch_byte(cpu); }) // LD H,d8
+    CASE(0x27, {
+      if (REG(f.n)) {
+        if (REG(f.h)) {
+          REG(a) += 0xFA;
+        }
+        if (REG(f.c)) {
+          REG(a) += 0xA0;
+        }
+      } else {
+        int16_t x = REG(a);
+        if ((REG(a) & 0x0F) > 0x09 || REG(f.h)) {
+          x += 0x06;
+        }
+        if ((x & 0x01F0) > 0x90 || REG(f.c)) {
+          x += 0x60;
+          REG(f.c) = 1;
+        } else {
+          REG(f.c) = 0;
+        }
+        REG(a) = (uint8_t)x;
+      }
+      REG(f.h) = 0;
+      REG(f.z) = !REG(a);
+    }) // DAA
     CASE(0x28, { conditional_jump_relative(cpu, REG(f.z)); }) // JR Z,r8
     CASE(0x29, { add16(cpu, &REG(hl), REG(hl)); }) // ADD HL,HL
     CASE(0x2A, { REG(a) = deref_load(cpu, REG(hl)++); }) // LD A,(HL+)
@@ -565,19 +588,21 @@ static void cb(struct cpu* const cpu) {
     CASE(0x05, { rotate_left_c(cpu, &REG(l)); }) // RLC L
     CASE(0x06, { DEREF_DECORATOR(REG(hl), { rotate_left_c(cpu, &x); }) }) // RLC (HL)
     CASE(0x07, { rotate_left_c(cpu, &REG(a)); }) // RLC A
-    CASE(0x08, { rotate_right_c(cpu, &REG(b)); }) // RLC B
-    CASE(0x09, { rotate_right_c(cpu, &REG(c)); }) // RLC C
-    CASE(0x0A, { rotate_right_c(cpu, &REG(d)); }) // RLC D
-    CASE(0x0B, { rotate_right_c(cpu, &REG(e)); }) // RLC E
-    CASE(0x0C, { rotate_right_c(cpu, &REG(h)); }) // RLC H
-    CASE(0x0D, { rotate_right_c(cpu, &REG(l)); }) // RLC L
-    CASE(0x0F, { rotate_right_c(cpu, &REG(a)); }) // RLC A
+    CASE(0x08, { rotate_right_c(cpu, &REG(b)); }) // RRC B
+    CASE(0x09, { rotate_right_c(cpu, &REG(c)); }) // RRC C
+    CASE(0x0A, { rotate_right_c(cpu, &REG(d)); }) // RRC D
+    CASE(0x0B, { rotate_right_c(cpu, &REG(e)); }) // RRC E
+    CASE(0x0C, { rotate_right_c(cpu, &REG(h)); }) // RRC H
+    CASE(0x0D, { rotate_right_c(cpu, &REG(l)); }) // RRC L
+    CASE(0x0E, { DEREF_DECORATOR(REG(hl), { rotate_right_c(cpu, &x); }) }) // RRC (HL)
+    CASE(0x0F, { rotate_right_c(cpu, &REG(a)); }) // RRC A
     CASE(0x10, { rotate_left(cpu, &REG(b)); }) // RL B
     CASE(0x11, { rotate_left(cpu, &REG(c)); }) // RL C
     CASE(0x12, { rotate_left(cpu, &REG(d)); }) // RL D
     CASE(0x13, { rotate_left(cpu, &REG(e)); }) // RL E
     CASE(0x14, { rotate_left(cpu, &REG(h)); }) // RL H
     CASE(0x15, { rotate_left(cpu, &REG(l)); }) // RL L
+    CASE(0x16, { DEREF_DECORATOR(REG(hl), { rotate_left(cpu, &x); }) }) // RL (HL)
     CASE(0x17, { rotate_left(cpu, &REG(a)); }) // RL A
     CASE(0x18, { rotate_right(cpu, &REG(b)); }) // RR B
     CASE(0x19, { rotate_right(cpu, &REG(c)); }) // RR C
@@ -585,6 +610,7 @@ static void cb(struct cpu* const cpu) {
     CASE(0x1B, { rotate_right(cpu, &REG(e)); }) // RR E
     CASE(0x1C, { rotate_right(cpu, &REG(h)); }) // RR H
     CASE(0x1D, { rotate_right(cpu, &REG(l)); }) // RR L
+    CASE(0x1E, { DEREF_DECORATOR(REG(hl), { rotate_right(cpu, &x); }) }) // RR (HL)
     CASE(0x1F, { rotate_right(cpu, &REG(a)); }) // RR A
     CASE(0x20, { shift_left_arithmetic(cpu, &REG(b)); }) // SLA B
     CASE(0x21, { shift_left_arithmetic(cpu, &REG(c)); }) // SLA C
@@ -592,6 +618,7 @@ static void cb(struct cpu* const cpu) {
     CASE(0x23, { shift_left_arithmetic(cpu, &REG(e)); }) // SLA E
     CASE(0x24, { shift_left_arithmetic(cpu, &REG(h)); }) // SLA H
     CASE(0x25, { shift_left_arithmetic(cpu, &REG(l)); }) // SLA L
+    CASE(0x26, { DEREF_DECORATOR(REG(hl), { shift_left_arithmetic(cpu, &x); }) }) // SLA (HL)
     CASE(0x27, { shift_left_arithmetic(cpu, &REG(a)); }) // SLA A
     CASE(0x28, { shift_right_arithmetic(cpu, &REG(b)); }) // SRA B
     CASE(0x29, { shift_right_arithmetic(cpu, &REG(c)); }) // SRA C
@@ -599,6 +626,7 @@ static void cb(struct cpu* const cpu) {
     CASE(0x2B, { shift_right_arithmetic(cpu, &REG(e)); }) // SRA E
     CASE(0x2C, { shift_right_arithmetic(cpu, &REG(h)); }) // SRA H
     CASE(0x2D, { shift_right_arithmetic(cpu, &REG(l)); }) // SRA L
+    CASE(0x2E, { DEREF_DECORATOR(REG(hl), { shift_right_arithmetic(cpu, &x); }) }) // SRA (HL)
     CASE(0x2F, { shift_right_arithmetic(cpu, &REG(a)); }) // SRA A
     CASE(0x30, { swap(cpu, &REG(b)); }) // SWAP B
     CASE(0x31, { swap(cpu, &REG(c)); }) // SWAP C
@@ -606,6 +634,7 @@ static void cb(struct cpu* const cpu) {
     CASE(0x33, { swap(cpu, &REG(e)); }) // SWAP E
     CASE(0x34, { swap(cpu, &REG(h)); }) // SWAP H
     CASE(0x35, { swap(cpu, &REG(l)); }) // SWAP L
+    CASE(0x36, { DEREF_DECORATOR(REG(hl), { swap(cpu, &x); }) }) // SWAP (HL)
     CASE(0x37, { swap(cpu, &REG(a)); }) // SWAP A
     CASE(0x38, { shift_right_logical(cpu, &REG(b)); }) // SRL B
     CASE(0x39, { shift_right_logical(cpu, &REG(c)); }) // SRL C
@@ -613,6 +642,7 @@ static void cb(struct cpu* const cpu) {
     CASE(0x3B, { shift_right_logical(cpu, &REG(e)); }) // SRL E
     CASE(0x3C, { shift_right_logical(cpu, &REG(h)); }) // SRL H
     CASE(0x3D, { shift_right_logical(cpu, &REG(l)); }) // SRL L
+    CASE(0x3E, { DEREF_DECORATOR(REG(hl), { shift_right_logical(cpu, &x); }) }) // SRL (HL)
     CASE(0x3F, { shift_right_logical(cpu, &REG(a)); }) // SRL A
     CASE(0x40, { bit(cpu, REG(b), 0); }) // BIT 0,B
     CASE(0x41, { bit(cpu, REG(c), 0); }) // BIT 0,C
@@ -621,12 +651,14 @@ static void cb(struct cpu* const cpu) {
     CASE(0x44, { bit(cpu, REG(h), 0); }) // BIT 0,H
     CASE(0x45, { bit(cpu, REG(l), 0); }) // BIT 0,L
     CASE(0x47, { bit(cpu, REG(a), 0); }) // BIT 0,A
+    CASE(0x46, { DEREF_DECORATOR(REG(hl), { bit(cpu, x, 0); }) }) // BIT 0,(HL)
     CASE(0x48, { bit(cpu, REG(b), 1); }) // BIT 1,B
     CASE(0x49, { bit(cpu, REG(c), 1); }) // BIT 1,C
     CASE(0x4A, { bit(cpu, REG(d), 1); }) // BIT 1,D
     CASE(0x4B, { bit(cpu, REG(e), 1); }) // BIT 1,E
     CASE(0x4C, { bit(cpu, REG(h), 1); }) // BIT 1,H
     CASE(0x4D, { bit(cpu, REG(l), 1); }) // BIT 1,L
+    CASE(0x4E, { DEREF_DECORATOR(REG(hl), { bit(cpu, x, 1); }) }) // BIT 1,(HL)
     CASE(0x4F, { bit(cpu, REG(a), 1); }) // BIT 1,A
     CASE(0x50, { bit(cpu, REG(b), 2); }) // BIT 2,B
     CASE(0x51, { bit(cpu, REG(c), 2); }) // BIT 2,C
@@ -634,6 +666,7 @@ static void cb(struct cpu* const cpu) {
     CASE(0x53, { bit(cpu, REG(e), 2); }) // BIT 2,E
     CASE(0x54, { bit(cpu, REG(h), 2); }) // BIT 2,H
     CASE(0x55, { bit(cpu, REG(l), 2); }) // BIT 2,L
+    CASE(0x56, { DEREF_DECORATOR(REG(hl), { bit(cpu, x, 2); }) }) // BIT 2,(HL)
     CASE(0x57, { bit(cpu, REG(a), 2); }) // BIT 2,A
     CASE(0x58, { bit(cpu, REG(b), 3); }) // BIT 3,B
     CASE(0x59, { bit(cpu, REG(c), 3); }) // BIT 3,C
@@ -641,6 +674,7 @@ static void cb(struct cpu* const cpu) {
     CASE(0x5B, { bit(cpu, REG(e), 3); }) // BIT 3,E
     CASE(0x5C, { bit(cpu, REG(h), 3); }) // BIT 3,H
     CASE(0x5D, { bit(cpu, REG(l), 3); }) // BIT 3,L
+    CASE(0x5E, { DEREF_DECORATOR(REG(hl), { bit(cpu, x, 3); }) }) // BIT 3,(HL)
     CASE(0x5F, { bit(cpu, REG(a), 3); }) // BIT 3,A
     CASE(0x60, { bit(cpu, REG(b), 4); }) // BIT 4,B
     CASE(0x61, { bit(cpu, REG(c), 4); }) // BIT 4,C
@@ -648,6 +682,7 @@ static void cb(struct cpu* const cpu) {
     CASE(0x63, { bit(cpu, REG(e), 4); }) // BIT 4,E
     CASE(0x64, { bit(cpu, REG(h), 4); }) // BIT 4,H
     CASE(0x65, { bit(cpu, REG(l), 4); }) // BIT 4,L
+    CASE(0x66, { DEREF_DECORATOR(REG(hl), { bit(cpu, x, 4); }) }) // BIT 4,(HL)
     CASE(0x67, { bit(cpu, REG(a), 4); }) // BIT 4,A
     CASE(0x68, { bit(cpu, REG(b), 5); }) // BIT 5,B
     CASE(0x69, { bit(cpu, REG(c), 5); }) // BIT 5,C
@@ -655,6 +690,7 @@ static void cb(struct cpu* const cpu) {
     CASE(0x6B, { bit(cpu, REG(e), 5); }) // BIT 5,E
     CASE(0x6C, { bit(cpu, REG(h), 5); }) // BIT 5,H
     CASE(0x6D, { bit(cpu, REG(l), 5); }) // BIT 5,L
+    CASE(0x6E, { DEREF_DECORATOR(REG(hl), { bit(cpu, x, 5); }) }) // BIT 5,(HL)
     CASE(0x6F, { bit(cpu, REG(a), 5); }) // BIT 5,A
     CASE(0x70, { bit(cpu, REG(b), 6); }) // BIT 6,B
     CASE(0x71, { bit(cpu, REG(c), 6); }) // BIT 6,C
@@ -662,6 +698,7 @@ static void cb(struct cpu* const cpu) {
     CASE(0x73, { bit(cpu, REG(e), 6); }) // BIT 6,E
     CASE(0x74, { bit(cpu, REG(h), 6); }) // BIT 6,H
     CASE(0x75, { bit(cpu, REG(l), 6); }) // BIT 6,L
+    CASE(0x76, { DEREF_DECORATOR(REG(hl), { bit(cpu, x, 6); }) }) // BIT 6,(HL)
     CASE(0x77, { bit(cpu, REG(a), 6); }) // BIT 6,A
     CASE(0x78, { bit(cpu, REG(b), 7); }) // BIT 7,B
     CASE(0x79, { bit(cpu, REG(c), 7); }) // BIT 7,C
@@ -669,6 +706,7 @@ static void cb(struct cpu* const cpu) {
     CASE(0x7B, { bit(cpu, REG(e), 7); }) // BIT 7,E
     CASE(0x7C, { bit(cpu, REG(h), 7); }) // Bit 7,H
     CASE(0x7D, { bit(cpu, REG(l), 7); }) // BIT 7,L
+    CASE(0x7E, { DEREF_DECORATOR(REG(hl), { bit(cpu, x, 7); }) }) // BIT 7,(HL)
     CASE(0x7F, { bit(cpu, REG(a), 7); }) // BIT 7,A
     CASE(0x80, { reset_bit(&REG(b), 0); }) // RES 0,B
     CASE(0x81, { reset_bit(&REG(c), 0); }) // RES 0,C
@@ -676,6 +714,7 @@ static void cb(struct cpu* const cpu) {
     CASE(0x83, { reset_bit(&REG(e), 0); }) // RES 0,E
     CASE(0x84, { reset_bit(&REG(h), 0); }) // RES 0,H
     CASE(0x85, { reset_bit(&REG(l), 0); }) // RES 0,L
+    CASE(0x86, { DEREF_DECORATOR(REG(hl), { reset_bit(&x, 0); }) }) // RES 0,(HL)
     CASE(0x87, { reset_bit(&REG(a), 0); }) // RES 0,A
     CASE(0x88, { reset_bit(&REG(b), 1); }) // RES 1,B
     CASE(0x89, { reset_bit(&REG(c), 1); }) // RES 1,C
@@ -683,6 +722,7 @@ static void cb(struct cpu* const cpu) {
     CASE(0x8B, { reset_bit(&REG(e), 1); }) // RES 1,E
     CASE(0x8C, { reset_bit(&REG(h), 1); }) // RES 1,H
     CASE(0x8D, { reset_bit(&REG(l), 1); }) // RES 1,L
+    CASE(0x8E, { DEREF_DECORATOR(REG(hl), { reset_bit(&x, 1); }) }) // RES 1,(HL)
     CASE(0x8F, { reset_bit(&REG(a), 1); }) // RES 1,A
     CASE(0x90, { reset_bit(&REG(b), 2); }) // RES 2,B
     CASE(0x91, { reset_bit(&REG(c), 2); }) // RES 2,C
@@ -690,6 +730,7 @@ static void cb(struct cpu* const cpu) {
     CASE(0x93, { reset_bit(&REG(e), 2); }) // RES 2,E
     CASE(0x94, { reset_bit(&REG(h), 2); }) // RES 2,H
     CASE(0x95, { reset_bit(&REG(l), 2); }) // RES 2,L
+    CASE(0x96, { DEREF_DECORATOR(REG(hl), { reset_bit(&x, 2); }) }) // RES 2,(HL)
     CASE(0x97, { reset_bit(&REG(a), 2); }) // RES 2,A
     CASE(0x98, { reset_bit(&REG(b), 3); }) // RES 3,B
     CASE(0x99, { reset_bit(&REG(c), 3); }) // RES 3,C
@@ -697,6 +738,7 @@ static void cb(struct cpu* const cpu) {
     CASE(0x9B, { reset_bit(&REG(e), 3); }) // RES 3,E
     CASE(0x9C, { reset_bit(&REG(h), 3); }) // RES 3,H
     CASE(0x9D, { reset_bit(&REG(l), 3); }) // RES 3,L
+    CASE(0x9E, { DEREF_DECORATOR(REG(hl), { reset_bit(&x, 3); }) }) // RES 3,(HL)
     CASE(0x9F, { reset_bit(&REG(a), 3); }) // RES 3,A
     CASE(0xA0, { reset_bit(&REG(b), 4); }) // RES 4,B
     CASE(0xA1, { reset_bit(&REG(c), 4); }) // RES 4,C
@@ -704,6 +746,7 @@ static void cb(struct cpu* const cpu) {
     CASE(0xA3, { reset_bit(&REG(e), 4); }) // RES 4,E
     CASE(0xA4, { reset_bit(&REG(h), 4); }) // RES 4,H
     CASE(0xA5, { reset_bit(&REG(l), 4); }) // RES 4,L
+    CASE(0xA6, { DEREF_DECORATOR(REG(hl), { reset_bit(&x, 4); }) }) // RES 4,(HL)
     CASE(0xA7, { reset_bit(&REG(a), 4); }) // RES 4,A
     CASE(0xA8, { reset_bit(&REG(b), 5); }) // RES 5,B
     CASE(0xA9, { reset_bit(&REG(c), 5); }) // RES 5,C
@@ -711,6 +754,7 @@ static void cb(struct cpu* const cpu) {
     CASE(0xAB, { reset_bit(&REG(e), 5); }) // RES 5,E
     CASE(0xAC, { reset_bit(&REG(h), 5); }) // RES 5,H
     CASE(0xAD, { reset_bit(&REG(l), 5); }) // RES 5,L
+    CASE(0xAE, { DEREF_DECORATOR(REG(hl), { reset_bit(&x, 5); }) }) // RES 5,(HL)
     CASE(0xAF, { reset_bit(&REG(a), 5); }) // RES 5,A
     CASE(0xB0, { reset_bit(&REG(b), 6); }) // RES 6,B
     CASE(0xB1, { reset_bit(&REG(c), 6); }) // RES 6,C
@@ -718,6 +762,7 @@ static void cb(struct cpu* const cpu) {
     CASE(0xB3, { reset_bit(&REG(e), 6); }) // RES 6,E
     CASE(0xB4, { reset_bit(&REG(h), 6); }) // RES 6,H
     CASE(0xB5, { reset_bit(&REG(l), 6); }) // RES 6,L
+    CASE(0xB6, { DEREF_DECORATOR(REG(hl), { reset_bit(&x, 6); }) }) // RES 6,(HL)
     CASE(0xB7, { reset_bit(&REG(a), 6); }) // RES 6,A
     CASE(0xB8, { reset_bit(&REG(b), 7); }) // RES 7,B
     CASE(0xB9, { reset_bit(&REG(c), 7); }) // RES 7,C
@@ -725,6 +770,7 @@ static void cb(struct cpu* const cpu) {
     CASE(0xBB, { reset_bit(&REG(e), 7); }) // RES 7,E
     CASE(0xBC, { reset_bit(&REG(h), 7); }) // RES 7,H
     CASE(0xBD, { reset_bit(&REG(l), 7); }) // RES 7,L
+    CASE(0xBE, { DEREF_DECORATOR(REG(hl), { reset_bit(&x, 7); }) }) // RES 7,(HL)
     CASE(0xBF, { reset_bit(&REG(a), 7); }) // RES 7,A
     CASE(0xC0, { set_bit(&REG(b), 0); }) // SET 0,B
     CASE(0xC1, { set_bit(&REG(c), 0); }) // SET 0,C
@@ -732,6 +778,7 @@ static void cb(struct cpu* const cpu) {
     CASE(0xC3, { set_bit(&REG(e), 0); }) // SET 0,E
     CASE(0xC4, { set_bit(&REG(h), 0); }) // SET 0,H
     CASE(0xC5, { set_bit(&REG(l), 0); }) // SET 0,L
+    CASE(0xC6, { DEREF_DECORATOR(REG(hl), { set_bit(&x, 0); }) }) // SET 0,(HL)
     CASE(0xC7, { set_bit(&REG(a), 0); }) // SET 0,A
     CASE(0xC8, { set_bit(&REG(b), 1); }) // SET 1,B
     CASE(0xC9, { set_bit(&REG(c), 1); }) // SET 1,C
@@ -739,6 +786,7 @@ static void cb(struct cpu* const cpu) {
     CASE(0xCB, { set_bit(&REG(e), 1); }) // SET 1,E
     CASE(0xCC, { set_bit(&REG(h), 1); }) // SET 1,H
     CASE(0xCD, { set_bit(&REG(l), 1); }) // SET 1,L
+    CASE(0xCE, { DEREF_DECORATOR(REG(hl), { set_bit(&x, 1); }) }) // SET 1,(HL)
     CASE(0xCF, { set_bit(&REG(a), 1); }) // SET 1,A
     CASE(0xD0, { set_bit(&REG(b), 2); }) // SET 2,B
     CASE(0xD1, { set_bit(&REG(c), 2); }) // SET 2,C
@@ -746,6 +794,7 @@ static void cb(struct cpu* const cpu) {
     CASE(0xD3, { set_bit(&REG(e), 2); }) // SET 2,E
     CASE(0xD4, { set_bit(&REG(h), 2); }) // SET 2,H
     CASE(0xD5, { set_bit(&REG(l), 2); }) // SET 2,L
+    CASE(0xD6, { DEREF_DECORATOR(REG(hl), { set_bit(&x, 2); }) }) // SET 2,(HL)
     CASE(0xD7, { set_bit(&REG(a), 2); }) // SET 2,A
     CASE(0xD8, { set_bit(&REG(b), 3); }) // SET 3,B
     CASE(0xD9, { set_bit(&REG(c), 3); }) // SET 3,C
@@ -753,6 +802,7 @@ static void cb(struct cpu* const cpu) {
     CASE(0xDB, { set_bit(&REG(e), 3); }) // SET 3,E
     CASE(0xDC, { set_bit(&REG(h), 3); }) // SET 3,H
     CASE(0xDD, { set_bit(&REG(l), 3); }) // SET 3,L
+    CASE(0xDE, { DEREF_DECORATOR(REG(hl), { set_bit(&x, 3); }) }) // SET 3,(HL)
     CASE(0xDF, { set_bit(&REG(a), 3); }) // SET 3,A
     CASE(0xE0, { set_bit(&REG(b), 4); }) // SET 4,B
     CASE(0xE1, { set_bit(&REG(c), 4); }) // SET 4,C
@@ -760,6 +810,7 @@ static void cb(struct cpu* const cpu) {
     CASE(0xE3, { set_bit(&REG(e), 4); }) // SET 4,E
     CASE(0xE4, { set_bit(&REG(h), 4); }) // SET 4,H
     CASE(0xE5, { set_bit(&REG(l), 4); }) // SET 4,L
+    CASE(0xE6, { DEREF_DECORATOR(REG(hl), { set_bit(&x, 4); }) }) // SET 4,(HL)
     CASE(0xE7, { set_bit(&REG(a), 4); }) // SET 4,A
     CASE(0xE8, { set_bit(&REG(b), 5); }) // SET 5,B
     CASE(0xE9, { set_bit(&REG(c), 5); }) // SET 5,C
@@ -767,6 +818,7 @@ static void cb(struct cpu* const cpu) {
     CASE(0xEB, { set_bit(&REG(e), 5); }) // SET 5,E
     CASE(0xEC, { set_bit(&REG(h), 5); }) // SET 5,H
     CASE(0xED, { set_bit(&REG(l), 5); }) // SET 5,L
+    CASE(0xEE, { DEREF_DECORATOR(REG(hl), { set_bit(&x, 5); }) }) // SET 5,(HL)
     CASE(0xEF, { set_bit(&REG(a), 5); }) // SET 5,A
     CASE(0xF0, { set_bit(&REG(b), 6); }) // SET 6,B
     CASE(0xF1, { set_bit(&REG(c), 6); }) // SET 6,C
@@ -774,6 +826,7 @@ static void cb(struct cpu* const cpu) {
     CASE(0xF3, { set_bit(&REG(e), 6); }) // SET 6,E
     CASE(0xF4, { set_bit(&REG(h), 6); }) // SET 6,H
     CASE(0xF5, { set_bit(&REG(l), 6); }) // SET 6,L
+    CASE(0xF6, { DEREF_DECORATOR(REG(hl), { set_bit(&x, 6); }) }) // SET 6,(HL)
     CASE(0xF7, { set_bit(&REG(a), 6); }) // SET 6,A
     CASE(0xF8, { set_bit(&REG(b), 7); }) // SET 7,B
     CASE(0xF9, { set_bit(&REG(c), 7); }) // SET 7,C
@@ -781,6 +834,7 @@ static void cb(struct cpu* const cpu) {
     CASE(0xFB, { set_bit(&REG(e), 7); }) // SET 7,E
     CASE(0xFC, { set_bit(&REG(h), 7); }) // SET 7,H
     CASE(0xFD, { set_bit(&REG(l), 7); }) // SET 7,L
+    CASE(0xFE, { DEREF_DECORATOR(REG(hl), { set_bit(&x, 7); }) }) // SET 7,(HL)
     CASE(0xFF, { set_bit(&REG(a), 7); }) // SET 7,A
     default:
       fprintf(stderr, "Unhandled 0xCB opcode: " PRIbyte "\n", op);
