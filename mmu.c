@@ -87,11 +87,13 @@ static int read_file_into_memory (const char* const path, void* dest,
   printf("opening %s\n", path);
   FILE* f = fopen(path, "r");
   if (!f) {
-    return -1;
+    fprintf(stderr, "failed to open %s\n", path);
+    goto error;
   }
   size_t fsize = get_filesize(f);
   if (!fsize) {
-    return -1;
+    fprintf(stderr, "%s appears to be an empty file\n", path);
+    goto fclose;
   }
   if (rom_size) {
     *rom_size = fsize;
@@ -101,10 +103,12 @@ static int read_file_into_memory (const char* const path, void* dest,
   fsize = fsize < 0x7FFF ? fsize : 0x7FFF;
 
   size_t read = fread(dest, 1, fsize, f);
-  if (read != fsize) {
-    return -1;
-  }
+  if (read != fsize) goto fclose;
   return fclose(f);
+fclose:
+  fclose(f);
+error:
+  return -1;
 }
 
 // http://gameboy.mongenel.com/dmg/asmmemmap.html
@@ -115,19 +119,23 @@ struct mmu* init_memory (const char* const restrict bios,
     const char* const restrict rom) {
   assert(rom != NULL);
   struct mmu* const mmu = malloc(sizeof(struct mmu));
-  if (!mmu) return mmu;
+  if (!mmu) goto error;
 #ifndef NDEBUG
   memset(mmu->memory, 0xF7, sizeof(mmu->memory));
 #endif
   int rc = read_file_into_memory(rom, mmu->memory, &mmu->rom_size);
-  if (rc) return NULL;
+  if (rc) goto free;
   if (bios) {
     memcpy(mmu->rom_masked_by_bios, mmu->memory, sizeof(mmu->rom_masked_by_bios));
     rc = read_file_into_memory(bios, mmu->memory, NULL);
-    if (rc) return NULL;
+    if (rc) goto free;
   }
   mmu->has_bios = !!bios;
   return mmu;
+free:
+  free(mmu);
+error:
+  return NULL;
 }
 
 void deinit_memory (struct mmu* const mem) {
