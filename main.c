@@ -67,8 +67,8 @@ int main (int argc, char** argv) {
       break;
     }
 
-    int cycles = tick_once(&cpu);
-    update_lcd(&lcd, cycles);
+    tick_once(&cpu);
+    update_lcd(&lcd, cpu.tick_cycles);
   }
 
   /*window_list_deinit(window_list_head);*/

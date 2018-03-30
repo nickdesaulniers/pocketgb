@@ -184,39 +184,35 @@ static void sc_write (struct mmu* const mem, const uint8_t val) {
     /*printf("%c\n", rb(mem, 0xFF01));*/
     putchar(rb(mem, 0xFF01));
   } else {
-    LOG(1, "not putting\n");
+    LOG(8, "not putting\n");
   }
 }
 
 static void handle_hardware_io_side_effects(struct mmu* const mem,
     const uint16_t addr, const uint8_t val) {
-  switch (addr & 0x00F0) {
-    case 0x0000:
-      switch (addr & 0x000F) {
-        case 0x0001:
-          /*LOG(1, "data written to SB " PRIbyte " " PRIshort "\n", val, addr);*/
-          break;
-        case 0x0002:
-          /*LOG(1, "data written to SC " PRIbyte " " PRIshort "\n", val, addr);*/
-          sc_write(mem, val);
-          break;
-      }
+  switch (addr) {
+    case 0xFF01:
+      LOG(7, "data written to SB " PRIbyte " " PRIshort "\n", val, addr);
       break;
-    case 0x0040:
-      switch (addr & 0x000F) {
-        case 0x0000:
-          LOG(7, "write to LCDC: %d\n", val);
-          break;
-      }
+    case 0xFF02:
+      LOG(7, "data written to SC " PRIbyte " " PRIshort "\n", val, addr);
+      sc_write(mem, val);
       break;
-    case 0x0050:
-      switch (addr & 0x0000F) {
-        case 0x0000:
-          // TODO: check val
-          LOG(7, "write to 0xFF50");
-          power_up_sequence(mem);
-          break;
-      }
+    case 0xFF0F:
+      LOG(7, "data written to IF " PRIbyte " @ " PRIshort "\n", val, addr);
+      break;
+    case 0xFF40:
+      LOG(7, "write to LCDC: %d\n", val);
+      break;
+    case 0xFF50:
+      // TODO: check val
+      LOG(7, "write to 0xFF50");
+      power_up_sequence(mem);
+      break;
+    case 0xFFFF:
+      LOG(7, "data written to IE " PRIbyte " @ " PRIshort "\n", val, addr);
+      break;
+    default:
       break;
   }
 }

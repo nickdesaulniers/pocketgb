@@ -30,6 +30,10 @@ static void update_line (struct lcd* const lcd, const uint8_t cycles) {
     }
     LOG(5, "LCD: advancing to line %d\n", lcd->line);
     wb(lcd->mmu, 0xFF44, lcd->line);
+    // vblank interrupt
+    if (lcd->line == 144) {
+      wb(lcd->mmu, 0xFF0F, rb(lcd->mmu, 0xFF0F) | 0x01);
+    }
   }
 }
 

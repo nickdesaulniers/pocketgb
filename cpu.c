@@ -249,7 +249,7 @@ static void add16(struct cpu* const cpu, uint16_t* const a, const uint16_t b) {
   *a = (uint16_t)x;
 }
 
-uint8_t tick_once(struct cpu* const cpu) {
+static void alu_tick_once(struct cpu* const cpu) {
 #ifndef NDEBUG
   const uint16_t pre_op_pc = REG(pc);
 #endif
@@ -561,6 +561,7 @@ uint8_t tick_once(struct cpu* const cpu) {
     }) // LD HL,SP+r8
     CASE(0xF9, { REG(sp) = REG(hl); cpu->tick_cycles += 4; }) // LD SP,HL
     CASE(0xFA, { REG(a) = deref_load(cpu, fetch_word(cpu)); }) // LD A,(a16)
+    // TODO: I think this gets enabled after one more inst?
     CASE(0xFB, { cpu->interrupts_enabled = 1; }) // EI
     CASE(0xFE, { subtract(cpu, fetch_byte(cpu), 0); }) // CP d8
     CASE(0xFF, { rst(cpu, 0x38); }) // RST 0x38
@@ -573,7 +574,6 @@ uint8_t tick_once(struct cpu* const cpu) {
   assert(cpu->tick_cycles >= 4);
   assert(cpu->tick_cycles <= 24);
   assert(pre_op_pc != REG(pc));  // Infinite loop detected
-  return cpu->tick_cycles;
 }
 
 static void cb(struct cpu* const cpu) {
@@ -843,15 +843,50 @@ static void cb(struct cpu* const cpu) {
   }
 }
 
-void init_cpu(struct cpu* const restrict cpu, struct mmu* const mmu) {
+void handle_interrupts(struct cpu* const cpu) {
+  if (!cpu->interrupts_enabled) {
+    return;
+  }
+  // Interrupts enabled
+  const uint8_t ie = rb(cpu->mmu, 0xFFFF);
+  // Interrupts triggered
+  uint8_t i_f = rb(cpu->mmu, 0xFF0F);
+
+#ifndef NDEBUG
+  // If they are just the poison value.
+  if (ie == 0xF7 || i_f == 0xF7) {
+    return;
+  }
+#endif
+  assert(ie <= 0x1F);
+  assert(i_f <= 0x1F);
+
+  // bit 0: 0x40 vblank
+  // bit 1: 0x48 lcd stat
+  // bit 2: 0x50 timer
+  // bit 3: 0x58 serial
+  // bit 4: 0x60 joypad
+  while (ie & i_f) {
+    LOG(7, "interrupt detected: " PRIbyte "\n", ie & i_f);
+    cpu->interrupts_enabled = 0;
+    const int tz = __builtin_ctz(ie & i_f);
+    reset_bit(&i_f, tz);
+    wb(cpu->mmu, 0xFF0F, i_f);
+    push(cpu, REG(pc));
+    REG(pc) = 8 * tz + 0x40;
+  }
+}
+
+void init_cpu(struct cpu* const cpu, struct mmu* const mmu) {
   assert(cpu != NULL);
   assert(mmu != NULL);
   cpu->mmu = mmu;
   // Don't jump the pc forward if it looks like we might be running just the
-  // BIOS.
+  // BIOS.  mgba checks header magic and checksums to verify.
   if (!mmu->has_bios && mmu->rom_size != 256) {
     // TODO: is this the correct value of F at the end of BIOS?
     // TODO: might games depend on which specific bits are which flags?
+    // https://github.com/mgba-emu/mgba/blob/388ed07074163f135989838633eea8f1c8416023/src/gb/gb.c#L443
     REG(af) = 0x010D;
     REG(bc) = 0x0013;
     REG(de) = 0x00D8;
@@ -860,4 +895,9 @@ void init_cpu(struct cpu* const restrict cpu, struct mmu* const mmu) {
     REG(pc) = 0x0100;
   }
   cpu->interrupts_enabled = 1;
+}
+
+void tick_once(struct cpu* const cpu) {
+  alu_tick_once(cpu);
+  handle_interrupts(cpu);
 }

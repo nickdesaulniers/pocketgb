@@ -48,11 +48,11 @@ struct cpu {
   } registers;
   struct mmu* mmu;
   uint8_t tick_cycles;
-  uint8_t interrupts_enabled;
+  uint8_t interrupts_enabled; // IME
 };
 
 typedef void (*instr) (struct cpu* const);
 
-uint8_t tick_once (struct cpu* const cpu);
+void tick_once (struct cpu* const cpu);
 void init_cpu (struct cpu* const restrict cpu,
     struct mmu* const restrict mmu);
