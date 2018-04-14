@@ -1,7 +1,6 @@
 #include "mmu.h"
 
 #include <assert.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -36,6 +35,7 @@ uint16_t rw (const struct mmu* const mem, const uint16_t addr) {
 }
 
 void wb (struct mmu* const mem, const uint16_t addr, const uint8_t val) {
+  mem->memory[addr] = val;
   switch (addr & 0xF000) {
     case 0x8000:
     case 0x9000: // intentional fallthrough
@@ -60,7 +60,6 @@ void wb (struct mmu* const mem, const uint16_t addr, const uint8_t val) {
       }
       break;
   }
-  mem->memory[addr] = val;
 }
 
 void ww (struct mmu* const mem, const uint16_t addr, const uint16_t val) {
@@ -133,6 +132,12 @@ struct mmu* init_memory (const char* const restrict bios,
   }
   mmu->has_bios = !!bios;
   mmu->tile_data_dirty = 1;
+  wb(mmu, 0xFF04, 0x00); // DIV
+  wb(mmu, 0xFF05, 0x00); // TIMA
+  wb(mmu, 0xFF06, 0x00); // TMA
+  wb(mmu, 0xFF07, 0x00); // TAC
+  wb(mmu, 0xFF0F, 0x00); // IF
+  wb(mmu, 0xFFFF, 0x00); // IE
   return mmu;
 free:
   free(mmu);
@@ -150,9 +155,6 @@ void deinit_memory (struct mmu* const mem) {
 static void power_up_sequence (struct mmu* const mem) {
   // remove the BIOS
   memcpy(mem, mem->rom_masked_by_bios, 256);
-  wb(mem, 0xFF05, 0x00); // TIMA
-  wb(mem, 0xFF06, 0x00); // TMA
-  wb(mem, 0xFF07, 0x00); // TAC
   wb(mem, 0xFF10, 0x80); // NR10
   wb(mem, 0xFF11, 0xBF); // NR11
   wb(mem, 0xFF12, 0xF3); // NR12
@@ -207,6 +209,10 @@ static void handle_hardware_io_side_effects(struct mmu* const mem,
     case 0xFF02:
       LOG(7, "data written to SC " PRIbyte " " PRIshort "\n", val, addr);
       sc_write(mem, val);
+      break;
+    case 0xFF04:
+      LOG(7, "data written to DIV " PRIbyte " " PRIshort "\n", val, addr);
+      mem->memory[addr] = 0;
       break;
     case 0xFF0F:
       LOG(7, "data written to IF " PRIbyte " @ " PRIshort "\n", val, addr);

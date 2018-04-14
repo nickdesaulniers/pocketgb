@@ -1,7 +1,6 @@
 #include "cpu.h"
 
 #include <assert.h>
-#include <stdio.h>
 #include <stdlib.h>
 
 #include "logging.h"
@@ -249,7 +248,7 @@ static void add16(struct cpu* const cpu, uint16_t* const a, const uint16_t b) {
   *a = (uint16_t)x;
 }
 
-static void alu_tick_once(struct cpu* const cpu) {
+void tick_once(struct cpu* const cpu) {
 #ifndef NDEBUG
   const uint16_t pre_op_pc = REG(pc);
 #endif
@@ -258,7 +257,6 @@ static void alu_tick_once(struct cpu* const cpu) {
 
   LOG(5, "== " PRIbyte " @ " PRIshort "\n", op, (uint16_t)(REG(pc) - 1));
 
-  // TODO: check for interrupts
   switch (op) {
     CASE(0x00, {}) // NOP
     CASE(0x01, { REG(bc) = fetch_word(cpu); }) // LD BC,d16
@@ -858,6 +856,7 @@ void handle_interrupts(struct cpu* const cpu) {
     return;
   }
 #endif
+  // TODO: should these be masks?
   assert(ie <= 0x1F);
   assert(i_f <= 0x1F);
 
@@ -895,9 +894,4 @@ void init_cpu(struct cpu* const cpu, struct mmu* const mmu) {
     REG(pc) = 0x0100;
   }
   cpu->interrupts_enabled = 1;
-}
-
-void tick_once(struct cpu* const cpu) {
-  alu_tick_once(cpu);
-  handle_interrupts(cpu);
 }

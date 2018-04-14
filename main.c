@@ -7,6 +7,7 @@
 
 #include "cpu.h"
 #include "lcd.h"
+#include "timer.h"
 #include "logging.h"
 
 static int should_exit = 0;
@@ -16,13 +17,14 @@ static void catch_sig_int(int signum) {
 
 static int initialize_system (const char* const restrict bios,
     const char* const restrict rom, struct cpu* const restrict cpu,
-    struct lcd* const restrict lcd) {
+    struct lcd* const restrict lcd, struct timer* const timer) {
   assert(rom != NULL);
   assert(cpu != NULL);
   struct mmu* const mmu = init_memory(bios, rom);
   if (!mmu) return -1;
   // TODO: registers get initialized differently based on model
   init_cpu(cpu, mmu);
+  init_timer(timer, mmu);
   // TODO: init function
   lcd->mmu = mmu;
   lcd->mode = 2;
@@ -37,13 +39,14 @@ int main (int argc, char** argv) {
 
   struct cpu cpu = { 0 };
   struct lcd lcd = { 0 };
+  struct timer timer;
   int rc = 0;
   if (argc == 2) {
     // If just the bios is passed, init_cpu will look at rom size and not jump
     // the pc forward.
-    rc = initialize_system(NULL, argv[1], &cpu, &lcd);
+    rc = initialize_system(NULL, argv[1], &cpu, &lcd, &timer);
   } else {
-    rc = initialize_system(argv[1], argv[2], &cpu, &lcd);
+    rc = initialize_system(argv[1], argv[2], &cpu, &lcd, &timer);
   }
   if (rc) {
     fprintf(stderr, "Failed to initialize system.\n");
@@ -66,6 +69,8 @@ int main (int argc, char** argv) {
     }
 
     tick_once(&cpu);
+    timer_tick(&timer, cpu.tick_cycles);
+    handle_interrupts(&cpu);
     update_lcd(&lcd, cpu.tick_cycles);
     update_debug_windows(&windows, &lcd);
   }

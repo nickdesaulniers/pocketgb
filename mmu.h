@@ -3,8 +3,6 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include "cpu.h"
-
 // http://gameboy.mongenel.com/dmg/asmmemmap.html
 struct mmu {
   uint8_t memory [65536];

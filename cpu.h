@@ -51,8 +51,7 @@ struct cpu {
   uint8_t interrupts_enabled; // IME
 };
 
-typedef void (*instr) (struct cpu* const);
-
 void tick_once (struct cpu* const cpu);
 void init_cpu (struct cpu* const restrict cpu,
     struct mmu* const restrict mmu);
+void handle_interrupts(struct cpu* const cpu);

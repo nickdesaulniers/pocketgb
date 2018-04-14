@@ -1,7 +1,6 @@
 #include "lcd.h"
 
 #include <assert.h>
-#include <stdio.h>
 
 #include "SDL_render.h"
 
