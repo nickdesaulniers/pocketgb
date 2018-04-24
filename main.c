@@ -67,10 +67,11 @@ int main (int argc, char** argv) {
 
     tick_once(&cpu);
     update_lcd(&lcd, cpu.tick_cycles);
+    update_debug_windows(&windows, &lcd);
   }
 
   destroy_windows(&windows);
   SDL_Quit();
   deinit_memory(cpu.mmu);
-  printf("exiting cleanly\n");
+  printf("\nexiting cleanly\n");
 }

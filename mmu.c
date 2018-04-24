@@ -40,6 +40,7 @@ void wb (struct mmu* const mem, const uint16_t addr, const uint8_t val) {
     case 0x8000:
     case 0x9000: // intentional fallthrough
       handle_tile_write(addr);
+      mem->tile_data_dirty = 1;
       break;
     case 0xE000:
       // echo ram
@@ -131,6 +132,7 @@ struct mmu* init_memory (const char* const restrict bios,
     if (rc) goto free;
   }
   mmu->has_bios = !!bios;
+  mmu->tile_data_dirty = 1;
   return mmu;
 free:
   free(mmu);

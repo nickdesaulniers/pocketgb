@@ -32,4 +32,3 @@ void create_debug_windows (struct windows* const windows);
 void update_debug_windows (struct windows* const windows,
     const struct lcd* const lcd);
 void destroy_windows (struct windows* windows);
-// TODO: cleanup/free windows

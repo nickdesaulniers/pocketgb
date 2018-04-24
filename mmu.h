@@ -12,6 +12,7 @@ struct mmu {
   uint8_t rom_masked_by_bios [256];
   int has_bios;
   size_t rom_size;
+  int tile_data_dirty;
 };
 
 __attribute__((nonnull(2)))

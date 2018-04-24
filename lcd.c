@@ -85,13 +85,13 @@ void update_lcd (struct lcd* const lcd, const uint8_t cycles) {
 // AKA BG & Window Tile Data Select
 static int bg_active_tileset (const struct lcd* const lcd) {
   const uint8_t lcdc = rb(lcd->mmu, 0xFF00);
-  printf("active tileset: %d\n", !!(lcdc & (1 << 4)));
+  LOG(4, "active tileset: %d\n", !!(lcdc & (1 << 4)));
   return !!(lcdc & (1 << 4));
 }
 
 static int bg_active_tilemap (const struct lcd* const lcd) {
   const uint8_t lcdc = rb(lcd->mmu, 0xFF00);
-  printf("active tilemap: %d\n", !!(lcdc & (1 << 3)));
+  LOG(4, "active tilemap: %d\n", !!(lcdc & (1 << 3)));
   return !!(lcdc & (1 << 3));
 }
 
@@ -171,9 +171,14 @@ static const uint8_t* seek_tile (const uint8_t* tile_data, unsigned int i) {
   return tile_data + i * 64;
 }
 
+static void clear_renderer (SDL_Renderer* const renderer) {
+  SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+  SDL_RenderClear(renderer);
+}
+
 static void paint_tiles (const uint8_t* const tile_data,
     SDL_Renderer* const renderer) {
-
+  clear_renderer(renderer);
   SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
 
   // 256 tiles in total
@@ -189,7 +194,7 @@ static void paint_tiles (const uint8_t* const tile_data,
 
 static void map_tiles (const uint8_t* const map_data,
     const uint8_t* const tile_data, SDL_Renderer* const renderer) {
-
+  clear_renderer(renderer);
   SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
   for (int map = 0; map < 32 * 32; ++map) {
     int dx = (map % 32) * 8;
@@ -236,9 +241,15 @@ void create_debug_windows (struct windows* const windows) {
   windows->tilemap.renderer = get_cleared_renderer(windows->tilemap.window);
 }
 
-/*// http://www.huderlem.com/demos/gameboy2bpp.html*/
+// http://www.huderlem.com/demos/gameboy2bpp.html
 void update_debug_windows (struct windows* const windows,
     const struct lcd* const lcd) {
+
+  if (!lcd->mmu->tile_data_dirty) {
+    return;
+  }
+  lcd->mmu->tile_data_dirty = 0;
+
   uint8_t* const tile_data = calloc(8 * 8 * 256, sizeof(uint8_t));
   shade_tiles(tile_data, lcd);
   paint_tiles(tile_data, windows->tiles.renderer);
