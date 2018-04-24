@@ -1,7 +1,10 @@
+#pragma once
+
 #include <stdint.h>
 #include <stdbool.h>
+#include "SDL_render.h"
+#include "SDL_video.h"
 #include "mmu.h"
-#include "window_list.h"
 
 struct lcd {
   struct mmu* mmu;
@@ -13,7 +16,20 @@ struct lcd {
   bool enabled;
 };
 
+struct winren {
+  SDL_Window* window;
+  SDL_Renderer* renderer;
+};
+
+struct windows {
+  struct winren main;
+  struct winren tiles;
+  struct winren tilemap;
+};
+
 void update_lcd (struct lcd* const lcd, const uint8_t cycles);
-void create_debug_windows (struct window_list** window_list_head);
-void update_debug_windows (const struct window_list* window_list_head,
+void create_debug_windows (struct windows* const windows);
+void update_debug_windows (struct windows* const windows,
     const struct lcd* const lcd);
+void destroy_windows (struct windows* windows);
+// TODO: cleanup/free windows

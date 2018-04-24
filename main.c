@@ -8,7 +8,6 @@
 #include "cpu.h"
 #include "lcd.h"
 #include "logging.h"
-#include "window_list.h"
 
 static int should_exit = 0;
 static void catch_sig_int(int signum) {
@@ -54,16 +53,15 @@ int main (int argc, char** argv) {
     perror("Unable to set SIGINT handler.\n");
   }
 
-  /*assert(SDL_Init(SDL_INIT_VIDEO) == 0);*/
-  /*struct window_list* window_list_head = NULL;*/
-  /*create_debug_windows(&window_list_head);*/
-  /*SDL_Event e;*/
+  assert(SDL_Init(SDL_INIT_VIDEO) == 0);
+  struct windows windows;
+  create_debug_windows(&windows);
+  SDL_Event e;
 
   // TODO: while cpu not halted
   while (1) {
-    /*SDL_PollEvent(&e);*/
-    /*if (should_exit || e.type == SDL_QUIT) {*/
-    if (should_exit) {
+    SDL_PollEvent(&e);
+    if (should_exit || e.type == SDL_QUIT) {
       break;
     }
 
@@ -71,8 +69,8 @@ int main (int argc, char** argv) {
     update_lcd(&lcd, cpu.tick_cycles);
   }
 
-  /*window_list_deinit(window_list_head);*/
-  /*SDL_Quit();*/
+  destroy_windows(&windows);
+  SDL_Quit();
   deinit_memory(cpu.mmu);
   printf("exiting cleanly\n");
 }

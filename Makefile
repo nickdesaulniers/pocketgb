@@ -4,7 +4,6 @@ SOURCES = \
 	cpu.c \
 	mmu.c \
 	lcd.c \
-	window_list.c \
 	main.c \
 
 FLAGS = \

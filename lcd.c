@@ -225,35 +225,35 @@ static SDL_Renderer* get_cleared_renderer (SDL_Window* const window) {
   return renderer;
 }
 
-void create_debug_windows (struct window_list** window_list_head) {
-  SDL_Window* debug_windows [] = {
+void create_debug_windows (struct windows* const windows) {
+  windows->tiles.window =
     SDL_CreateWindow("Debug Tileset",
-        SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 16 * 8, 16 * 8, 0),
+        SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 16 * 8, 16 * 8, 0);
+  windows->tiles.renderer = get_cleared_renderer(windows->tiles.window);
+  windows->tilemap.window =
     SDL_CreateWindow("Debug Tilemapped Tiles",
-        SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 32 * 8, 32 * 8, 0)
-  };
-  for (unsigned int i = 0; i < sizeof(debug_windows) / sizeof(SDL_Window*); ++i) {
-    SDL_Renderer* renderer = get_cleared_renderer(debug_windows[i]);
-    assert(renderer != NULL);
-    window_list_insert(window_list_head, debug_windows[i], renderer);
-  }
+        SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 32 * 8, 32 * 8, 0);
+  windows->tilemap.renderer = get_cleared_renderer(windows->tilemap.window);
 }
 
-// http://www.huderlem.com/demos/gameboy2bpp.html
-void update_debug_windows (const struct window_list* const window_list_head,
+/*// http://www.huderlem.com/demos/gameboy2bpp.html*/
+void update_debug_windows (struct windows* const windows,
     const struct lcd* const lcd) {
-  assert(window_list_head->next != NULL);
-  assert(window_list_head->next->renderer != NULL);
-  assert(window_list_head->renderer != window_list_head->next->renderer);
-
   uint8_t* const tile_data = calloc(8 * 8 * 256, sizeof(uint8_t));
   shade_tiles(tile_data, lcd);
-  paint_tiles(tile_data, window_list_head->renderer);
+  paint_tiles(tile_data, windows->tiles.renderer);
 
   uint8_t* const map_data = calloc(32 * 32, sizeof(uint8_t));
   paint_bg_tilemap(map_data, lcd);
-  map_tiles(map_data, tile_data, window_list_head->next->renderer);
+  map_tiles(map_data, tile_data, windows->tilemap.renderer);
 
   free(tile_data);
   free(map_data);
+}
+
+void destroy_windows (struct windows* windows) {
+  SDL_DestroyRenderer(windows->tiles.renderer);
+  SDL_DestroyRenderer(windows->tilemap.renderer);
+  SDL_DestroyWindow(windows->tiles.window);
+  SDL_DestroyWindow(windows->tilemap.window);
 }
