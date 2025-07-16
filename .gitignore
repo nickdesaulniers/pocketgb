@@ -4,3 +4,5 @@
 disassembler
 pocketgb
 tags
+build/
+.cache/

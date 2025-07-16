@@ -104,7 +104,7 @@ static void rst(struct cpu* const cpu, const uint16_t addr) {
          addr == 0x20 || addr == 0x28 || addr == 0x30 || addr ==  0x38);
   cpu->tick_cycles += 4;
   push(cpu, REG(pc));
-  jump(cpu, (uint16_t)addr);
+  jump(cpu, addr);
 }
 
 static uint8_t get_bit(const uint8_t src, const int index) {
